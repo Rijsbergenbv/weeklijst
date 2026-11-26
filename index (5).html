@@ -1,0 +1,2618 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#0f172a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Weeklijst">
+    <title>Weeklijst - Installatiebedrijf Rijsbergen BV</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- SheetJS voor echte .xlsx Excel-bestanden -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Font Awesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f1f5f9;
+            color: #0f172a;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+
+        /* Number input arrows hiding for cleaner mobile UI */
+        input[type=number]::-webkit-inner-spin-button, 
+        input[type=number]::-webkit-outer-spin-button { 
+            -webkit-appearance: none; 
+            margin: 0; 
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        /* Print Layout Styling (Matches exact Excel Sheet on 1 A4 page) */
+        @media print {
+            body {
+                background-color: #ffffff !important;
+                font-size: 10pt;
+            }
+            .no-print {
+                display: none !important;
+            }
+            .print-only {
+                display: block !important;
+            }
+            @page {
+                size: A4 portrait;
+                margin: 10mm;
+            }
+            .print-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-size: 8.5pt;
+            }
+            .print-table th, .print-table td {
+                border: 1px solid #000000;
+                padding: 2px 5px;
+                height: 18px;
+            }
+            .print-table th {
+                background-color: #e2e8f0 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-weight: 700;
+            }
+            .print-day-header {
+                background-color: #cbd5e1 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+                font-weight: 700;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-36">
+
+    <!-- ==================== TOP HEADER (NO-PRINT) ==================== -->
+    <header class="bg-slate-900 text-white sticky top-0 z-30 shadow-lg no-print">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-inner font-extrabold text-lg tracking-wider">
+                    IR
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight">Installatiebedrijf Rijsbergen BV</h1>
+                    <div class="flex items-center space-x-2 text-xs text-slate-300">
+                        <span>Digitale Weeklijst</span>
+                        <span>•</span>
+                        <span id="saveStatusBadge" class="inline-flex items-center text-emerald-400 font-medium">
+                            <i class="fa-solid fa-check mr-1 text-[10px]"></i> Automatisch opslaan actief
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-1.5 sm:space-x-2">
+                <button onclick="openHistoryModal()" class="bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white px-3 py-2 rounded-xl text-xs sm:text-sm font-bold border border-blue-500 shadow-sm transition flex items-center space-x-1.5" title="Opgeslagen weeklijsten terugkijken">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>Terugkijken</span>
+                    <span id="savedWeeksCountBadge" class="bg-slate-900/80 text-blue-200 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold">0</span>
+                </button>
+                <button onclick="openCodesModal()" class="bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-slate-100 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700 transition flex items-center space-x-1.5" title="Bekijk alle coderingen">
+                    <i class="fa-solid fa-list-ol text-blue-400"></i>
+                    <span class="hidden md:inline">Coderingen</span>
+                </button>
+                <button onclick="openResetModal()" class="bg-slate-800 hover:bg-red-950/60 text-slate-300 hover:text-red-300 px-3 py-2 rounded-xl text-xs sm:text-sm font-medium border border-slate-700 transition flex items-center space-x-1.5" title="Nieuwe week starten">
+                    <i class="fa-solid fa-rotate-right"></i>
+                    <span class="hidden md:inline">Nieuwe week</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== MAIN CONTAINER (NO-PRINT) ==================== -->
+    <main class="max-w-4xl mx-auto px-3 sm:px-4 pt-4 space-y-4 no-print">
+
+        <!-- VALIDATION BANNER (HIDDEN BY DEFAULT) -->
+        <div id="validationAlert" class="hidden bg-red-50 border-2 border-red-500 rounded-2xl p-4 shadow-md">
+            <div class="flex items-start space-x-3">
+                <div class="w-8 h-8 rounded-full bg-red-100 text-red-600 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <i class="fa-solid fa-triangle-exclamation text-lg"></i>
+                </div>
+                <div class="flex-1">
+                    <h3 class="text-sm sm:text-base font-bold text-red-900">De weeklijst kan nog niet worden goedgekeurd!</h3>
+                    <p class="text-xs sm:text-sm text-red-700 mt-0.5">Controleer en corrigeer de volgende verplichte velden:</p>
+                    <ul id="validationErrorList" class="list-disc list-inside text-xs sm:text-sm text-red-800 font-medium mt-2 space-y-1"></ul>
+                </div>
+                <button onclick="hideValidationBanner()" class="text-red-500 hover:text-red-800 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- ALGEMENE GEGEVENS CARD (NAAM, WEEKNR, STARTDATUM) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5">
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <div class="flex items-center space-x-2">
+                    <h2 class="text-sm font-bold uppercase tracking-wider text-slate-500 flex items-center">
+                        <i class="fa-solid fa-user-check text-blue-600 mr-2"></i>Gegevens Monteur &amp; Week
+                    </h2>
+                    <span id="weekApprovalBadge" class="hidden text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        <i class="fa-solid fa-circle-check mr-1"></i>Akkoord &amp; Opgeslagen
+                    </span>
+                </div>
+                <div class="flex items-center space-x-1.5">
+                    <button type="button" onclick="navigateWeekOffset(-1)" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition flex items-center space-x-1" title="Vorige week openen">
+                        <i class="fa-solid fa-chevron-left text-[10px]"></i>
+                        <span>Vorige week</span>
+                    </button>
+                    <button type="button" onclick="navigateWeekOffset(1)" class="text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200 transition flex items-center space-x-1" title="Volgende week openen">
+                        <span>Volgende week</span>
+                        <i class="fa-solid fa-chevron-right text-[10px]"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4">
+                <!-- Naam Monteur -->
+                <div class="sm:col-span-5">
+                    <label for="employeeName" class="block text-xs font-bold text-slate-700 mb-1">
+                        Naam Monteur <span class="text-red-500">*</span>
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400 pointer-events-none">
+                            <i class="fa-solid fa-user"></i>
+                        </span>
+                        <input type="text" id="employeeName" placeholder="Voornaam + Achternaam" oninput="handleHeaderChange()" class="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm sm:text-base font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-transparent transition">
+                    </div>
+                </div>
+
+                <!-- Weeknummer, Jaar & Maandag datum -->
+                <div class="grid grid-cols-3 sm:col-span-7 gap-2.5">
+                    <div>
+                        <label for="weekNumber" class="block text-xs font-bold text-slate-700 mb-1">
+                            Weeknr. <span class="text-red-500">*</span>
+                        </label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-slate-400 pointer-events-none">
+                                <i class="fa-solid fa-hashtag text-xs"></i>
+                            </span>
+                            <input type="number" id="weekNumber" min="1" max="53" placeholder="47" onchange="handleWeekOrYearInputChange()" class="w-full pl-8 pr-2 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm sm:text-base font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition">
+                        </div>
+                    </div>
+
+                    <div>
+                        <label for="weekYear" class="block text-xs font-bold text-slate-700 mb-1">
+                            Jaar <span class="text-red-500">*</span>
+                        </label>
+                        <input type="number" id="weekYear" min="2024" max="2035" placeholder="2026" onchange="handleWeekOrYearInputChange()" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm sm:text-base font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition">
+                    </div>
+
+                    <!-- Startdatum (Maandag) -->
+                    <div>
+                        <label for="mondayDate" class="block text-xs font-bold text-slate-700 mb-1">
+                            Maandag
+                        </label>
+                        <input type="date" id="mondayDate" onchange="handleDateChange()" class="w-full px-2.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-medium text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600 transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bekende/Eerdere Projecten Snelkiezer Info -->
+            <div id="recentProjectsBar" class="mt-3 pt-3 border-t border-slate-100 hidden">
+                <div class="flex items-center flex-wrap gap-1.5">
+                    <span class="text-xs font-semibold text-slate-500 mr-1"><i class="fa-solid fa-clock-rotate-left mr-1"></i>Snel invullen:</span>
+                    <div id="recentProjectsChips" class="flex flex-wrap gap-1.5"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- DAGEN MENU (TABBLADEN MAANDAG T/M ZONDAG + WEEKOVERZICHT) -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200 p-2.5 sm:p-3 sticky top-[60px] z-20">
+            <div class="flex items-center justify-between mb-2 px-1">
+                <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500 flex items-center">
+                    <i class="fa-solid fa-calendar-day text-blue-600 mr-1.5"></i>Kies een dag om in te vullen
+                </span>
+                <button onclick="selectDayTab('all')" id="tabBtn-all" class="text-xs font-bold px-2.5 py-1 rounded-lg border transition flex items-center space-x-1 bg-slate-100 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700">
+                    <i class="fa-solid fa-table-list text-[11px]"></i>
+                    <span>Alle dagen (Overzicht)</span>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-7 gap-1 sm:gap-1.5" id="dayTabsMenu"></div>
+        </section>
+
+        <!-- DAGEN CONTAINER (ACTIEVE DAG OF ALLE DAGEN) -->
+        <div id="daysContainer" class="space-y-5"></div>
+
+    </main>
+
+    <!-- ==================== STICKY BOTTOM ACTION BAR (NO-PRINT) ==================== -->
+    <footer class="fixed bottom-0 inset-x-0 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl z-30 no-print">
+        <div class="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+                <div class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Weektotaal</div>
+                <div class="flex items-baseline space-x-1.5">
+                    <span id="stickyWeekTotal" class="text-2xl sm:text-3xl font-extrabold text-slate-900">0.0</span>
+                    <span class="text-xs sm:text-sm font-semibold text-slate-500">uur</span>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <button onclick="openHistoryModal()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold px-3.5 py-3.5 rounded-2xl border border-slate-300 flex items-center space-x-1.5 text-xs sm:text-sm transition" title="Opgeslagen weeklijsten terugkijken">
+                    <i class="fa-solid fa-clock-rotate-left text-blue-600"></i>
+                    <span class="hidden sm:inline">Opgeslagen weken</span>
+                </button>
+                <button onclick="validateApproveAndOpenExportModal()" class="bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold px-4 sm:px-6 py-3.5 rounded-2xl shadow-lg shadow-emerald-600/25 flex items-center space-x-2 text-xs sm:text-base transition transform active:scale-95">
+                    <i class="fa-solid fa-file-circle-check"></i>
+                    <span>Akkoord &amp; Versturen</span>
+                </button>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ==================== MODAL 1: CODERINGEN WEEKLIJST OVERZICHT ==================== -->
+    <div id="codesModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-2xl max-w-2xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="px-5 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-2.5">
+                    <i class="fa-solid fa-list-check text-blue-400 text-lg"></i>
+                    <h3 class="font-bold text-base sm:text-lg">Coderingen Weeklijst</h3>
+                </div>
+                <button onclick="closeCodesModal()" class="text-slate-400 hover:text-white p-1.5 rounded-lg">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 border-b border-slate-200 bg-slate-50">
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400"></i>
+                    <input type="text" id="codeSearchInput" oninput="renderCodesReferenceList()" placeholder="Zoek op code (bijv. 600, 950) of werkzaamheden..." class="w-full pl-10 pr-4 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-600">
+                </div>
+            </div>
+
+            <div id="codesReferenceContainer" class="p-4 overflow-y-auto space-y-4 flex-1"></div>
+
+            <div class="px-5 py-3 bg-slate-100 border-t border-slate-200 flex justify-end">
+                <button onclick="closeCodesModal()" class="bg-slate-800 text-white px-5 py-2 rounded-xl text-sm font-semibold">
+                    Sluiten
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL 2: GOEDGEKEURD & VERSTUREN / EXPORTEREN ==================== -->
+    <div id="exportModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            <!-- Header -->
+            <div class="px-6 py-5 bg-emerald-600 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-2xl">
+                        <i class="fa-solid fa-circle-check"></i>
+                    </div>
+                    <div>
+                        <span class="text-[11px] font-bold uppercase tracking-wider bg-emerald-800/60 px-2 py-0.5 rounded-md">Akkoord &amp; Automatisch Opgeslagen</span>
+                        <h3 class="font-extrabold text-lg leading-snug mt-0.5">Weeklijst Klaar voor Verzending</h3>
+                    </div>
+                </div>
+                <button onclick="closeExportModal()" class="text-emerald-100 hover:text-white p-1.5">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <!-- Body -->
+            <div class="p-5 overflow-y-auto space-y-5 flex-1">
+                <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-3.5 flex items-start space-x-3">
+                    <i class="fa-solid fa-floppy-disk text-emerald-600 text-lg mt-0.5"></i>
+                    <div class="text-xs text-emerald-900">
+                        <strong>Opgeslagen in de app!</strong> Deze weeklijst is akkoord bevonden en vastgelegd onder <em>Terugkijken (Opgeslagen weken)</em>. Verstuur hieronder direct het Excel-bestand naar kantoor.
+                    </div>
+                </div>
+
+                <!-- Samenvatting kaartje -->
+                <div class="bg-slate-50 rounded-2xl p-4 border border-slate-200">
+                    <div class="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                            <div class="text-[11px] text-slate-500 font-semibold uppercase">Monteur</div>
+                            <div id="summaryMonteur" class="font-bold text-slate-900 text-sm truncate">-</div>
+                        </div>
+                        <div class="border-x border-slate-200">
+                            <div class="text-[11px] text-slate-500 font-semibold uppercase">Weeknr.</div>
+                            <div id="summaryWeek" class="font-bold text-slate-900 text-sm">-</div>
+                        </div>
+                        <div>
+                            <div class="text-[11px] text-slate-500 font-semibold uppercase">Weektotaal</div>
+                            <div id="summaryTotal" class="font-extrabold text-blue-600 text-sm">0.0 uur</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Kantoor E-mailadres instelling -->
+                <div>
+                    <label for="officeEmail" class="block text-xs font-bold text-slate-600 mb-1">
+                        Ontvanger E-mailadres (Projectadministratie)
+                    </label>
+                    <div class="relative">
+                        <span class="absolute inset-y-0 left-0 pl-3.5 flex items-center text-slate-400">
+                            <i class="fa-solid fa-envelope"></i>
+                        </span>
+                        <input type="email" id="officeEmail" value="projecten@rijsbergenbv.nl" placeholder="projecten@rijsbergenbv.nl" oninput="saveOfficeEmail()" class="w-full pl-10 pr-3 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                    </div>
+                </div>
+
+                <!-- Verzenden & Exporteren Actieknoppen -->
+                <div class="space-y-3">
+                    <!-- Optie 1: Direct delen met bijlage op mobiel -->
+                    <button onclick="shareNativeWithAttachment()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white p-4 rounded-2xl shadow-md flex items-center justify-between transition group">
+                        <div class="flex items-center space-x-3.5 text-left">
+                            <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm sm:text-base">Verstuur Excel-bijlage via Mailprogramma</div>
+                                <div class="text-xs text-blue-100">Voegt het Excel-bestand (.xlsx) toe en opent je Mail-app naar projecten@rijsbergenbv.nl</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-blue-200 group-hover:translate-x-1 transition"></i>
+                    </button>
+
+                    <!-- Optie 2: Standaard E-mail openen (mailto:) -->
+                    <button onclick="sendMailto()" class="w-full bg-slate-900 hover:bg-slate-800 text-white p-4 rounded-2xl shadow-md flex items-center justify-between transition group">
+                        <div class="flex items-center space-x-3.5 text-left">
+                            <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center text-lg">
+                                <i class="fa-solid fa-envelope-open-text"></i>
+                            </div>
+                            <div>
+                                <div class="font-bold text-sm sm:text-base">Download Excel + Open Mail naar projecten@rijsbergenbv.nl</div>
+                                <div class="text-xs text-slate-300">Downloadt het Excel-bestand en opent direct een e-mail</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-slate-400 group-hover:translate-x-1 transition"></i>
+                    </button>
+
+                    <!-- Optie 3: Download Excel (.xlsx) & CSV -->
+                    <div class="grid grid-cols-2 gap-2.5 pt-1">
+                        <button onclick="downloadExcelFile()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 p-3 rounded-2xl flex flex-col items-center justify-center text-center transition">
+                            <i class="fa-solid fa-file-excel text-emerald-600 text-xl mb-1"></i>
+                            <span class="font-bold text-xs sm:text-sm">Download Excel (.xlsx)</span>
+                            <span class="text-[11px] text-emerald-700">Echt Excel-bestand</span>
+                        </button>
+
+                        <button onclick="downloadCSVFile()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 p-3 rounded-2xl flex flex-col items-center justify-center text-center transition">
+                            <i class="fa-solid fa-file-csv text-slate-700 text-xl mb-1"></i>
+                            <span class="font-bold text-xs sm:text-sm">Download CSV (.csv)</span>
+                            <span class="text-[11px] text-slate-500">Voor administratie</span>
+                        </button>
+                    </div>
+
+                    <!-- Optie 4: Print / PDF & Kopieer -->
+                    <div class="grid grid-cols-2 gap-2.5">
+                        <button onclick="printWeeklijst()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 p-2.5 rounded-xl flex items-center justify-center space-x-2 text-xs font-bold transition">
+                            <i class="fa-solid fa-print text-slate-600"></i>
+                            <span>Print / PDF (A4)</span>
+                        </button>
+
+                        <button onclick="copySummaryToClipboard()" class="bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 p-2.5 rounded-xl flex items-center justify-center space-x-2 text-xs font-bold transition">
+                            <i class="fa-regular fa-copy text-slate-600"></i>
+                            <span id="copyBtnText">Kopieer Tekst</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-100 border-t border-slate-200 flex items-center justify-between">
+                <button onclick="closeExportModal(); openHistoryModal();" class="text-blue-600 hover:text-blue-800 font-bold text-xs sm:text-sm flex items-center space-x-1.5">
+                    <i class="fa-solid fa-folder-open"></i>
+                    <span>Opgeslagen weken terugkijken</span>
+                </button>
+                <button onclick="closeExportModal()" class="text-slate-600 hover:text-slate-900 font-semibold text-sm px-4 py-1.5">
+                    Sluiten
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL 3: NIEUWE WEEK / WISSEN BEVESTIGING ==================== -->
+    <div id="resetModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 items-center justify-center p-4 no-print hidden">
+        <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl">
+            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-xl mb-4">
+                <i class="fa-solid fa-calendar-plus"></i>
+            </div>
+            <h3 class="font-bold text-lg text-slate-900">Nieuwe weeklijst starten?</h3>
+            <p class="text-sm text-slate-600 mt-1">
+                Je start een lege lijst voor de geselecteerde week. Eerder akkoord gegeven weeklijsten blijven veilig bewaard onder <strong>Terugkijken</strong>.
+            </p>
+            <div class="mt-6 flex items-center justify-end space-x-3">
+                <button onclick="closeResetModal()" class="px-4 py-2.5 rounded-xl text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                    Annuleren
+                </button>
+                <button onclick="confirmResetWeek()" class="px-5 py-2.5 rounded-xl text-sm font-bold bg-red-600 hover:bg-red-700 text-white shadow-md">
+                    Ja, maak deze week leeg
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MODAL 4: OPGESLAGEN WEEKLIJSTEN (TERUGKIJKEN & ARCHIEF) ==================== -->
+    <div id="historyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs z-50 hidden items-center justify-center p-3 sm:p-4 no-print">
+        <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            <div class="px-6 py-4 bg-slate-900 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-lg">
+                        <i class="fa-solid fa-clock-rotate-left"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-extrabold text-base sm:text-lg">Opgeslagen Weeklijsten (Terugkijken)</h3>
+                        <p class="text-xs text-slate-300">Bekijk, heropen of verstuur eerder ingevulde en akkoord gegeven weken</p>
+                    </div>
+                </div>
+                <button onclick="closeHistoryModal()" class="text-slate-400 hover:text-white p-1.5">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div id="historyModalContent" class="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 bg-slate-50"></div>
+
+            <div class="px-6 py-3 bg-white border-t border-slate-200 flex items-center justify-between">
+                <span class="text-xs text-slate-500">Alle weken worden automatisch op dit toestel bewaard.</span>
+                <button onclick="closeHistoryModal()" class="bg-slate-800 hover:bg-slate-700 text-white px-5 py-2 rounded-xl text-sm font-bold">
+                    Sluiten
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== TOAST NOTIFICATION ==================== -->
+    <div id="toastNotification" class="fixed bottom-24 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-xl shadow-xl text-xs sm:text-sm font-semibold z-50 items-center space-x-2 no-print hidden">
+        <i class="fa-solid fa-circle-check text-emerald-400"></i>
+        <span id="toastMessage">Opgeslagen</span>
+    </div>
+
+    <!-- ==================== PRINTABLE A4 VIEW (EXACT EXCEL LAYOUT) ==================== -->
+    <div id="printableArea" class="hidden print-only"></div>
+
+    <!-- ==================== JAVASCRIPT APPLICATION LOGIC ==================== -->
+    <script>
+        // =========================================================================
+        // 1. VOLLEDIGE LIJST MET ORIGINELE CODERINGEN (UIT EXCEL WEEKLIJST)
+        // =========================================================================
+        const CODERINGEN_CATEGORIES = [
+            {
+                group: "Afwezigheid / Verlof / School",
+                isAbsenceGroup: true,
+                codes: [
+                    { code: "300", label: "ZIEK", isAbsence: true },
+                    { code: "301", label: "HUISARTS/TANDARTS/SPECIALIST", isAbsence: true },
+                    { code: "302", label: "AFWEZIG EIGEN REKENING", isAbsence: true },
+                    { code: "303", label: "VRIJ/SNIPPERDAG/VAKANTIE", isAbsence: true },
+                    { code: "304", label: "BIJZONDER VERLOF", isAbsence: true },
+                    { code: "305", label: "SCHOOL/CURSUS", isAbsence: true },
+                    { code: "307", label: "AANGEPAST WERK (ZIEK)", isAbsence: false },
+                    { code: "316", label: "ATV", isAbsence: true }
+                ]
+            },
+            {
+                group: "Loodgieterswerk / Sanitair / Dak / CV",
+                isAbsenceGroup: false,
+                codes: [
+                    { code: "120", label: "VUILWATERRIOLERING" },
+                    { code: "130", label: "SCHOONWATERRIOLERING" },
+                    { code: "160", label: "MONTAGE PVC HEMELWATERAFVOEREN" },
+                    { code: "170", label: "MONTAGE ZINKEN HEMELWATERAFVOEREN" },
+                    { code: "220", label: "KOUDWATERLEIDING" },
+                    { code: "250", label: "WARMWATERLEIDING" },
+                    { code: "310", label: "GASLEIDING" },
+                    { code: "350", label: "AFTEKENEN LOODGIETERSWERK" },
+                    { code: "420", label: "MONTAGE SANITAIR" },
+                    { code: "500", label: "ZINKWERK" },
+                    { code: "550", label: "DAKBEDEKKING" },
+                    { code: "600", label: "CV WERKZAAMHEDEN" },
+                    { code: "650", label: "ELEKTRISCHE (VLOER)VERWARMING" }
+                ]
+            },
+            {
+                group: "Elektra / Ventilatie / Onderhoud",
+                isAbsenceGroup: false,
+                codes: [
+                    { code: "700", label: "ELEKTRA" },
+                    { code: "710", label: "AFTEKENEN ELEKTRA" },
+                    { code: "730", label: "CAI/TEL/DATA" },
+                    { code: "750", label: "MONTAGE VERLICHTING" },
+                    { code: "800", label: "MECHANISCHE VENTILATIE" },
+                    { code: "830", label: "KANAAL WASEMKAP OF WASDROGER" },
+                    { code: "850", label: "OVERIGE INSTALLATIES" },
+                    { code: "860", label: "ONDERHOUD/STORING" }
+                ]
+            },
+            {
+                group: "Voorbereiding / Reis / Algemeen / Kantoor",
+                isAbsenceGroup: false,
+                codes: [
+                    { code: "910", label: "TEKENWERK" },
+                    { code: "920", label: "WERKVOORBEREIDING" },
+                    { code: "930", label: "WERKBEGELEIDING" },
+                    { code: "940", label: "BOUWVERGADERING" },
+                    { code: "950", label: "REISTIJD" },
+                    { code: "990", label: "OPRUIMEN BUS/OPRUIMEN WERKPLAATS" },
+                    { code: "010", label: "GARANTIE" },
+                    { code: "020", label: "ADMINISTRATIE" },
+                    { code: "030", label: "WERK OPNEMEN" },
+                    { code: "040", label: "CALCULATIE/OFFERTE" },
+                    { code: "050", label: "BESPREKING" },
+                    { code: "060", label: "ALGEMEEN/OVERIG" }
+                ]
+            }
+        ];
+
+        const CODE_MAP = {};
+        CODERINGEN_CATEGORIES.forEach(cat => {
+            cat.codes.forEach(c => {
+                CODE_MAP[c.code] = c;
+            });
+        });
+
+        const DAY_NAMES = ["MAANDAG", "DINSDAG", "WOENSDAG", "DONDERDAG", "VRIJDAG", "ZATERDAG", "ZONDAG"];
+        const DAY_SHORT = ["Ma", "Di", "Wo", "Do", "Vr", "Za", "Zo"];
+        const MAX_CODES_PER_ROW = 5;
+        const DEFAULT_OFFICE_EMAIL = "projecten@rijsbergenbv.nl";
+
+        const STORAGE_KEY = "ir_weeklijst_state_v3";
+        const STORAGE_ARCHIVE_KEY = "ir_weeklijst_saved_weeks_v3";
+        const STORAGE_NAME_KEY = "ir_monteur_naam";
+        const STORAGE_EMAIL_KEY = "ir_office_email_v3";
+        const STORAGE_RECENT_PROJECTS_KEY = "ir_recent_projects";
+
+        let appState = {
+            employeeName: "",
+            weekNumber: "",
+            year: new Date().getFullYear(),
+            mondayDate: "",
+            selectedDayTab: 0,
+            isApproved: false,
+            approvedAt: null,
+            days: []
+        };
+
+        let activeRowForChipFill = null;
+        let currentHistoryDetailKey = null;
+
+        // =========================================================================
+        // 2. PROJECTNUMMER VALIDATIE & SLIMME AUTO-FORMATTER ('P 1234', 'bon' OF 'kantoor')
+        // =========================================================================
+        function isValidProjectNumber(val) {
+            if (!val) return false;
+            const trimmed = val.trim();
+            return /^P \d{4}$/.test(trimmed) || /^bon$/i.test(trimmed) || /^kantoor$/i.test(trimmed);
+        }
+
+        function autoFormatProjectNumber(rawVal) {
+            if (!rawVal) return "";
+            let v = rawVal.trim();
+            if (/^bon$/i.test(v)) return "bon";
+            if (/^kantoor$/i.test(v)) return "kantoor";
+            if (/^\d{4}$/.test(v)) return "P " + v;
+            const matchP = v.match(/^[pP][\s\-._]*(\d{4})$/);
+            if (matchP) return "P " + matchP[1];
+            if (/^p \d{0,4}$/.test(v)) return "P " + v.substring(2);
+            return v;
+        }
+
+        // =========================================================================
+        // 3. INITIALIZATION, WEEK ARCHIVE & DATE HELPERS
+        // =========================================================================
+        function setupDynamicPwaManifest() {
+            const svgIcon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"><rect width="192" height="192" rx="42" fill="#0f172a"/><rect x="16" y="16" width="160" height="160" rx="32" fill="#2563eb"/><text x="96" y="118" font-family="Arial,sans-serif" font-size="76" font-weight="900" fill="#ffffff" text-anchor="middle">IR</text></svg>`;
+            const iconUrl = "data:image/svg+xml;utf8," + encodeURIComponent(svgIcon);
+
+            const appleIcon = document.createElement('link');
+            appleIcon.rel = 'apple-touch-icon';
+            appleIcon.href = iconUrl;
+            document.head.appendChild(appleIcon);
+
+            const manifestObj = {
+                name: "Weeklijst - Installatiebedrijf Rijsbergen BV",
+                short_name: "IR Weeklijst",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#f1f5f9",
+                theme_color: "#0f172a",
+                icons: [
+                    {
+                        src: iconUrl,
+                        sizes: "192x192 512x512",
+                        type: "image/svg+xml",
+                        purpose: "any maskable"
+                    }
+                ]
+            };
+
+            const manifestBlob = new Blob([JSON.stringify(manifestObj)], { type: 'application/json' });
+            const manifestLink = document.createElement('link');
+            manifestLink.rel = 'manifest';
+            manifestLink.href = URL.createObjectURL(manifestBlob);
+            document.head.appendChild(manifestLink);
+        }
+
+        window.onload = function () {
+            setupDynamicPwaManifest();
+            loadState();
+            renderDayTabsMenu();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderRecentProjectsBar();
+            renderCodesReferenceList();
+            updateSavedWeeksBadge();
+        };
+
+        function getISOWeekNumber(d) {
+            const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+            const dayNum = date.getUTCDay() || 7;
+            date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+            const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+            return Math.ceil((((date - yearStart) / 86400000) + 1) / 7);
+        }
+
+        function getYearFromMonday(mondayStr) {
+            if (!mondayStr) return new Date().getFullYear();
+            const d = new Date(mondayStr + "T00:00:00");
+            if (isNaN(d.getTime())) return new Date().getFullYear();
+            d.setDate(d.getDate() + 3);
+            return d.getFullYear();
+        }
+
+        function getMondayOfCurrentWeek() {
+            const now = new Date();
+            const day = now.getDay();
+            const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(now.setDate(diff));
+            return monday.toISOString().split('T')[0];
+        }
+
+        function getHighestFilledSlotCount(entries) {
+            let maxCount = 1;
+            if (!entries || !Array.isArray(entries)) return 1;
+            for (let i = 0; i < MAX_CODES_PER_ROW; i++) {
+                const e = entries[i];
+                if (e && ((e.code && String(e.code).trim() !== "") || (e.tijd !== "" && e.tijd !== null && e.tijd !== undefined && parseFloat(e.tijd) > 0))) {
+                    maxCount = i + 1;
+                }
+            }
+            return maxCount;
+        }
+
+        function createEmptyProjectRow() {
+            const entries = [];
+            for (let i = 0; i < MAX_CODES_PER_ROW; i++) {
+                entries.push({ code: "", tijd: "" });
+            }
+            return {
+                id: 'row_' + Math.random().toString(36).substr(2, 9),
+                prjnr: "",
+                adres: "",
+                visibleCodesCount: 1,
+                entries: entries
+            };
+        }
+
+        function normalizeRowStructure(row) {
+            if (!row.entries || !Array.isArray(row.entries)) {
+                row.entries = [];
+            }
+            while (row.entries.length < MAX_CODES_PER_ROW) {
+                row.entries.push({ code: "", tijd: "" });
+            }
+            if (row.prjnr) {
+                row.prjnr = autoFormatProjectNumber(row.prjnr);
+            }
+            const minNeeded = getHighestFilledSlotCount(row.entries);
+            if (!row.visibleCodesCount || row.visibleCodesCount < minNeeded) {
+                row.visibleCodesCount = minNeeded;
+            }
+            if (row.visibleCodesCount > MAX_CODES_PER_ROW) {
+                row.visibleCodesCount = MAX_CODES_PER_ROW;
+            }
+            return row;
+        }
+
+        function createDefaultDays() {
+            return DAY_NAMES.map((name, index) => ({
+                dayIndex: index,
+                dayName: name,
+                rows: [createEmptyProjectRow()]
+            }));
+        }
+
+        function getWeekArchiveKey(year, weekNr) {
+            const y = year || new Date().getFullYear();
+            const w = String(weekNr || 1).padStart(2, '0');
+            return `${y}-W${w}`;
+        }
+
+        function getSavedWeeksMap() {
+            try {
+                const raw = localStorage.getItem(STORAGE_ARCHIVE_KEY);
+                return raw ? JSON.parse(raw) : {};
+            } catch (e) {
+                return {};
+            }
+        }
+
+        function saveWeeksMap(mapObj) {
+            localStorage.setItem(STORAGE_ARCHIVE_KEY, JSON.stringify(mapObj));
+            updateSavedWeeksBadge();
+        }
+
+        function syncCurrentWeekToArchive(markAsApproved = false) {
+            if (!appState.weekNumber) return;
+            const year = getYearFromMonday(appState.mondayDate);
+            appState.year = year;
+
+            if (markAsApproved) {
+                appState.isApproved = true;
+                appState.approvedAt = new Date().toISOString();
+            }
+
+            const totalHours = calculateWeekTotal();
+            const hasAnyEntries = totalHours > 0 || appState.days.some(d => d.rows.some(r => !isRowCompletelyEmpty(r)));
+
+            const map = getSavedWeeksMap();
+            const key = getWeekArchiveKey(year, appState.weekNumber);
+
+            if (hasAnyEntries || markAsApproved || map[key]) {
+                map[key] = {
+                    key: key,
+                    year: year,
+                    weekNumber: appState.weekNumber,
+                    mondayDate: appState.mondayDate,
+                    employeeName: appState.employeeName,
+                    totalHours: totalHours,
+                    isApproved: Boolean(appState.isApproved),
+                    approvedAt: appState.approvedAt || null,
+                    updatedAt: new Date().toISOString(),
+                    days: JSON.parse(JSON.stringify(appState.days))
+                };
+                saveWeeksMap(map);
+            }
+            updateApprovalBadgeUI();
+        }
+
+        function updateSavedWeeksBadge() {
+            const map = getSavedWeeksMap();
+            const keys = Object.keys(map);
+            const badge = document.getElementById('savedWeeksCountBadge');
+            if (badge) badge.textContent = keys.length;
+        }
+
+        function updateApprovalBadgeUI() {
+            const badge = document.getElementById('weekApprovalBadge');
+            if (!badge) return;
+            if (appState.isApproved) {
+                badge.classList.remove('hidden');
+                badge.classList.add('inline-flex', 'items-center');
+            } else {
+                badge.classList.add('hidden');
+                badge.classList.remove('inline-flex', 'items-center');
+            }
+        }
+
+        function loadState() {
+            const savedName = localStorage.getItem(STORAGE_NAME_KEY) || "";
+            const savedEmail = localStorage.getItem(STORAGE_EMAIL_KEY) || DEFAULT_OFFICE_EMAIL;
+            document.getElementById('officeEmail').value = savedEmail;
+
+            const raw = localStorage.getItem(STORAGE_KEY) || localStorage.getItem("ir_weeklijst_state_v2") || localStorage.getItem("ir_weeklijst_state_v1");
+            if (raw) {
+                try {
+                    const parsed = JSON.parse(raw);
+                    appState = parsed;
+                    if (!appState.employeeName && savedName) appState.employeeName = savedName;
+                    if (appState.selectedDayTab === undefined) appState.selectedDayTab = 0;
+                    if (!appState.days || appState.days.length < 7) {
+                        const existingDays = appState.days || [];
+                        appState.days = DAY_NAMES.map((name, idx) => {
+                            if (existingDays[idx]) {
+                                existingDays[idx].dayName = name;
+                                existingDays[idx].dayIndex = idx;
+                                existingDays[idx].rows = (existingDays[idx].rows || [createEmptyProjectRow()]).map(normalizeRowStructure);
+                                return existingDays[idx];
+                            }
+                            return { dayIndex: idx, dayName: name, rows: [createEmptyProjectRow()] };
+                        });
+                    } else {
+                        appState.days.forEach(d => {
+                            d.rows = (d.rows || [createEmptyProjectRow()]).map(normalizeRowStructure);
+                        });
+                    }
+                } catch (e) {
+                    initFreshState(savedName);
+                }
+            } else {
+                initFreshState(savedName);
+            }
+
+            document.getElementById('employeeName').value = appState.employeeName || "";
+            document.getElementById('weekNumber').value = appState.weekNumber || getISOWeekNumber(new Date());
+            document.getElementById('weekYear').value = appState.year || getYearFromMonday(appState.mondayDate);
+            document.getElementById('mondayDate').value = appState.mondayDate || getMondayOfCurrentWeek();
+            syncCurrentWeekToArchive(false);
+        }
+
+        function initFreshState(savedName, customMondayStr = null) {
+            const mondayStr = customMondayStr || getMondayOfCurrentWeek();
+            const weekNr = getISOWeekNumber(new Date(mondayStr + "T00:00:00"));
+            const year = getYearFromMonday(mondayStr);
+            appState = {
+                employeeName: savedName || "",
+                weekNumber: weekNr,
+                year: year,
+                mondayDate: mondayStr,
+                selectedDayTab: 0,
+                isApproved: false,
+                approvedAt: null,
+                days: createDefaultDays()
+            };
+            saveState();
+        }
+
+        function getMondayFromISOWeek(year, week) {
+            const simple = new Date(Date.UTC(year, 0, 1 + (week - 1) * 7));
+            const dow = simple.getUTCDay();
+            const ISOweekStart = simple;
+            if (dow <= 4) {
+                ISOweekStart.setUTCDate(simple.getUTCDate() - simple.getUTCDay() + 1);
+            } else {
+                ISOweekStart.setUTCDate(simple.getUTCDate() + 8 - simple.getUTCDay());
+            }
+            return ISOweekStart.toISOString().split('T')[0];
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+            if (appState.employeeName && appState.employeeName.trim() !== "") {
+                localStorage.setItem(STORAGE_NAME_KEY, appState.employeeName.trim());
+            }
+            syncCurrentWeekToArchive(false);
+            const badge = document.getElementById('saveStatusBadge');
+            if (badge) {
+                const timeStr = new Date().toLocaleTimeString('nl-NL', { hour: '2-digit', minute: '2-digit' });
+                badge.innerHTML = `<i class="fa-solid fa-check mr-1 text-[10px]"></i> Week ${appState.weekNumber} opgeslagen (${timeStr})`;
+            }
+        }
+
+        function saveOfficeEmail() {
+            const val = document.getElementById('officeEmail').value.trim();
+            localStorage.setItem(STORAGE_EMAIL_KEY, val || DEFAULT_OFFICE_EMAIL);
+        }
+
+        function handleHeaderChange() {
+            appState.employeeName = document.getElementById('employeeName').value;
+            saveState();
+        }
+
+        function handleWeekOrYearInputChange() {
+            let newWeek = parseInt(document.getElementById('weekNumber').value, 10);
+            let newYear = parseInt(document.getElementById('weekYear').value, 10);
+
+            if (isNaN(newWeek) || newWeek < 1) newWeek = 1;
+            if (newWeek > 53) newWeek = 53;
+            if (isNaN(newYear) || newYear < 2020 || newYear > 2040) {
+                newYear = appState.year || new Date().getFullYear();
+            }
+
+            const targetMondayStr = getMondayFromISOWeek(newYear, newWeek);
+            switchToWeekByMondayDate(targetMondayStr);
+        }
+
+        function handleDateChange() {
+            const mondayInput = document.getElementById('mondayDate').value;
+            if (mondayInput) {
+                const d = new Date(mondayInput + "T00:00:00");
+                if (!isNaN(d.getTime())) {
+                    const day = d.getDay();
+                    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                    const normalizedMonday = new Date(d.setDate(diff));
+                    switchToWeekByMondayDate(normalizedMonday.toISOString().split('T')[0]);
+                }
+            }
+        }
+
+        function navigateWeekOffset(weekDelta) {
+            const currentMonday = appState.mondayDate || getMondayOfCurrentWeek();
+            const d = new Date(currentMonday + "T00:00:00");
+            if (isNaN(d.getTime())) return;
+            d.setDate(d.getDate() + (weekDelta * 7));
+            const newMondayStr = d.toISOString().split('T')[0];
+            switchToWeekByMondayDate(newMondayStr);
+        }
+
+        function switchToWeekByMondayDate(newMondayStr) {
+            syncCurrentWeekToArchive(false);
+
+            const targetWeekNr = getISOWeekNumber(new Date(newMondayStr + "T00:00:00"));
+            const targetYear = getYearFromMonday(newMondayStr);
+            const targetKey = getWeekArchiveKey(targetYear, targetWeekNr);
+            const map = getSavedWeeksMap();
+
+            if (map[targetKey]) {
+                const archived = map[targetKey];
+                appState = {
+                    employeeName: archived.employeeName || appState.employeeName,
+                    weekNumber: archived.weekNumber,
+                    year: archived.year,
+                    mondayDate: archived.mondayDate || newMondayStr,
+                    selectedDayTab: 0,
+                    isApproved: Boolean(archived.isApproved),
+                    approvedAt: archived.approvedAt || null,
+                    days: (archived.days || createDefaultDays()).map(d => ({
+                        ...d,
+                        rows: (d.rows || [createEmptyProjectRow()]).map(normalizeRowStructure)
+                    }))
+                };
+                showToast(`Opgeslagen Week ${targetWeekNr} (${targetYear}) geladen`);
+            } else {
+                const currentName = appState.employeeName;
+                initFreshState(currentName, newMondayStr);
+                showToast(`Week ${targetWeekNr} (${targetYear}) geopend`);
+            }
+
+            document.getElementById('employeeName').value = appState.employeeName || "";
+            document.getElementById('weekNumber').value = appState.weekNumber;
+            document.getElementById('weekYear').value = appState.year;
+            document.getElementById('mondayDate').value = appState.mondayDate;
+
+            saveState();
+            hideValidationBanner();
+            renderDayTabsMenu();
+            renderAllDays();
+            updateTotalsAndUI();
+        }
+
+        function formatDayDate(mondayStr, dayOffset) {
+            if (!mondayStr) return "";
+            const d = new Date(mondayStr + "T00:00:00");
+            if (isNaN(d.getTime())) return "";
+            d.setDate(d.getDate() + dayOffset);
+            return d.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        }
+
+        function formatShortDayDate(mondayStr, dayOffset) {
+            if (!mondayStr) return "";
+            const d = new Date(mondayStr + "T00:00:00");
+            if (isNaN(d.getTime())) return "";
+            d.setDate(d.getDate() + dayOffset);
+            return d.toLocaleDateString('nl-NL', { day: '2-digit', month: '2-digit' });
+        }
+
+        // =========================================================================
+        // 4. DAGEN MENU (TABBLADEN MA T/M ZO) & DAG STATUS
+        // =========================================================================
+        function selectDayTab(tabIndexOrAll) {
+            appState.selectedDayTab = tabIndexOrAll;
+            activeRowForChipFill = null;
+            saveState();
+            renderDayTabsMenu();
+            renderAllDays();
+            updateTotalsAndUI();
+        }
+
+        function checkDayHasErrors(day) {
+            for (let rIdx = 0; rIdx < day.rows.length; rIdx++) {
+                const row = day.rows[rIdx];
+                if (isRowCompletelyEmpty(row)) continue;
+                if (!isValidProjectNumber(row.prjnr)) return true;
+                if (!row.adres || row.adres.trim() === "") return true;
+
+                let hasValidPair = false;
+                for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
+                    const e = row.entries[s] || { code: "", tijd: "" };
+                    const hasC = e.code && e.code.trim() !== "";
+                    const tNum = parseFloat(e.tijd);
+                    const hasT = !isNaN(tNum) && tNum > 0;
+                    if ((hasC && !hasT) || (!hasC && hasT)) return true;
+                    if (hasC && hasT) hasValidPair = true;
+                }
+                if (!hasValidPair) return true;
+            }
+            return false;
+        }
+
+        function renderDayTabsMenu() {
+            const menu = document.getElementById('dayTabsMenu');
+            if (!menu) return;
+
+            const allBtn = document.getElementById('tabBtn-all');
+            if (allBtn) {
+                if (appState.selectedDayTab === 'all') {
+                    allBtn.className = "text-xs font-bold px-3 py-1 rounded-lg border transition flex items-center space-x-1.5 bg-blue-600 text-white border-blue-600 shadow-xs";
+                } else {
+                    allBtn.className = "text-xs font-bold px-2.5 py-1 rounded-lg border transition flex items-center space-x-1 bg-slate-100 text-slate-700 border-slate-200 hover:bg-blue-50 hover:text-blue-700";
+                }
+            }
+
+            let html = "";
+            appState.days.forEach((day, dIdx) => {
+                const isSelected = appState.selectedDayTab === dIdx;
+                const dayTotal = calculateDayTotal(day);
+                const hasError = checkDayHasErrors(day);
+                const shortDate = formatShortDayDate(appState.mondayDate, dIdx);
+
+                let btnStyle = "bg-slate-50 border-slate-200 text-slate-700 hover:border-blue-400";
+                let hoursBadgeStyle = "text-slate-600";
+                let statusIcon = "";
+
+                if (isSelected) {
+                    btnStyle = "bg-slate-900 border-slate-900 text-white shadow-md ring-2 ring-blue-500/40";
+                    hoursBadgeStyle = dayTotal > 0 ? "text-emerald-400" : "text-slate-300";
+                } else if (hasError) {
+                    btnStyle = "bg-red-50 border-red-300 text-red-900";
+                    hoursBadgeStyle = "text-red-700";
+                } else if (dayTotal > 0) {
+                    btnStyle = "bg-emerald-50/70 border-emerald-300 text-slate-900";
+                    hoursBadgeStyle = "text-emerald-700";
+                }
+
+                if (hasError) {
+                    statusIcon = `<i class="fa-solid fa-circle-exclamation text-red-500 text-[10px]"></i>`;
+                } else if (dayTotal > 0) {
+                    statusIcon = `<i class="fa-solid fa-circle-check ${isSelected ? 'text-emerald-400' : 'text-emerald-600'} text-[10px]"></i>`;
+                }
+
+                html += `
+                    <button type="button" onclick="selectDayTab(${dIdx})" id="navPill-${dIdx}" class="py-2 px-1 rounded-xl border text-center transition flex flex-col items-center justify-center relative ${btnStyle}">
+                        <div class="flex items-center space-x-1">
+                            <span class="text-xs font-extrabold uppercase tracking-tight">${DAY_SHORT[dIdx]}</span>
+                            ${statusIcon}
+                        </div>
+                        <span class="text-[10px] text-slate-400 font-medium leading-tight">${shortDate}</span>
+                        <div id="navHours-${dIdx}" class="text-[11px] font-extrabold mt-0.5 ${hoursBadgeStyle}">${formatHours(dayTotal)}u</div>
+                    </button>
+                `;
+            });
+
+            menu.innerHTML = html;
+        }
+
+        // =========================================================================
+        // 5. RENDER DAYS & PROJECT ROWS (MET 5 CODES PER PROJECT)
+        // =========================================================================
+        function buildCodeSelectOptions(selectedCode) {
+            let html = `<option value="">-- Kies code --</option>`;
+            CODERINGEN_CATEGORIES.forEach(group => {
+                html += `<optgroup label="${group.group}">`;
+                group.codes.forEach(item => {
+                    const isSelected = String(selectedCode) === String(item.code) ? "selected" : "";
+                    html += `<option value="${item.code}" ${isSelected}>${item.code} - ${item.label}</option>`;
+                });
+                html += `</optgroup>`;
+            });
+            return html;
+        }
+
+        function renderAllDays() {
+            const container = document.getElementById('daysContainer');
+            container.innerHTML = "";
+
+            appState.days.forEach((day, dIdx) => {
+                if (appState.selectedDayTab !== 'all' && appState.selectedDayTab !== dIdx) return;
+
+                const formattedDate = formatDayDate(appState.mondayDate, dIdx);
+                const dayCard = document.createElement('section');
+                dayCard.id = `daySection-${dIdx}`;
+                dayCard.className = "bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden transition";
+
+                let rowsHtml = "";
+                day.rows.forEach((row, rIdx) => {
+                    rowsHtml += buildRowHTML(dIdx, rIdx, row, day.rows.length);
+                });
+
+                const prevDayBtn = dIdx > 0 ? `
+                    <button onclick="selectDayTab(${dIdx - 1})" class="text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-300 px-3 py-2 rounded-xl flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-arrow-left text-[11px]"></i>
+                        <span>${DAY_SHORT[dIdx - 1]} (${DAY_NAMES[dIdx - 1].toLowerCase()})</span>
+                    </button>
+                ` : `<div></div>`;
+
+                const nextDayBtn = dIdx < 6 ? `
+                    <button onclick="selectDayTab(${dIdx + 1})" class="text-xs font-bold text-white bg-slate-800 hover:bg-slate-700 px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition">
+                        <span>Volgende: ${DAY_NAMES[dIdx + 1].toLowerCase()}</span>
+                        <i class="fa-solid fa-arrow-right text-[11px]"></i>
+                    </button>
+                ` : `
+                    <button onclick="selectDayTab('all')" class="text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 px-3.5 py-2 rounded-xl flex items-center space-x-1.5 transition">
+                        <i class="fa-solid fa-table-list text-[11px]"></i>
+                        <span>Bekijk weekoverzicht</span>
+                    </button>
+                `;
+
+                dayCard.innerHTML = `
+                    <div class="bg-slate-800 text-white px-4 py-3 flex items-center justify-between">
+                        <div class="flex items-center space-x-2.5">
+                            <span class="w-8 h-8 rounded-xl bg-blue-600 text-white font-extrabold text-xs flex items-center justify-center shadow-inner">
+                                ${DAY_SHORT[dIdx].toUpperCase()}
+                            </span>
+                            <div>
+                                <h3 class="font-extrabold text-sm sm:text-base tracking-wide">${day.dayName}</h3>
+                                <span class="text-[11px] text-slate-300 font-medium">${formattedDate}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2">
+                            ${dIdx > 0 ? `
+                                <button onclick="copyPreviousDay(${dIdx})" class="bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-slate-600 transition flex items-center space-x-1" title="Kopieer projecten van ${DAY_NAMES[dIdx - 1].toLowerCase()}">
+                                    <i class="fa-regular fa-copy text-[11px]"></i>
+                                    <span>Kopieer ${DAY_SHORT[dIdx - 1].toLowerCase()}</span>
+                                </button>
+                            ` : ''}
+                            <div class="bg-slate-900/80 px-3 py-1 rounded-xl border border-slate-700 text-right">
+                                <span class="text-[10px] text-slate-400 uppercase font-bold block leading-none">Dagtotaal</span>
+                                <span id="dayTotalBadge-${dIdx}" class="text-sm font-extrabold text-emerald-400">0.0 uur</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="dayRowsContainer-${dIdx}" class="p-3 sm:p-4 space-y-4 divide-y divide-slate-100">
+                        ${rowsHtml}
+                    </div>
+
+                    <div class="px-4 py-3 bg-slate-50 border-t border-slate-200/80 space-y-3">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <button onclick="addProjectRow(${dIdx})" class="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm px-4 py-2.5 rounded-xl shadow-xs flex items-center space-x-1.5 transition active:scale-95">
+                                <i class="fa-solid fa-plus"></i>
+                                <span>Extra project toevoegen op ${day.dayName.toLowerCase()}</span>
+                            </button>
+
+                            <button onclick="addAbsenceQuickRow(${dIdx})" class="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-xs px-3 py-2.5 rounded-xl flex items-center space-x-1.5 transition">
+                                <i class="fa-solid fa-umbrella-beach text-amber-600"></i>
+                                <span>Verlof / Ziek / School / ATV (kantoor)</span>
+                            </button>
+                        </div>
+
+                        ${appState.selectedDayTab !== 'all' ? `
+                            <div class="pt-2 border-t border-slate-200/70 flex items-center justify-between">
+                                ${prevDayBtn}
+                                ${nextDayBtn}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+
+                container.appendChild(dayCard);
+            });
+        }
+
+        function buildRowHTML(dIdx, rIdx, row, totalRowsInDay) {
+            normalizeRowStructure(row);
+            const rowTotal = calculateRowTotal(row);
+            const prjTrimmed = (row.prjnr || "").trim();
+            const isPrjValid = isValidProjectNumber(prjTrimmed);
+            const isPrjFilled = prjTrimmed !== "";
+
+            let prjStatusBadge = `<span class="text-[10px] text-slate-400 font-medium">Format: <strong>P 1234</strong>, <strong>bon</strong> of <strong>kantoor</strong></span>`;
+            if (isPrjFilled && isPrjValid) {
+                prjStatusBadge = `<span class="text-[10px] text-emerald-600 font-bold flex items-center"><i class="fa-solid fa-circle-check mr-1"></i>Geldig (${escapeHtml(prjTrimmed)})</span>`;
+            } else if (isPrjFilled && !isPrjValid) {
+                prjStatusBadge = `<span class="text-[10px] text-red-600 font-bold flex items-center"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Gebruik 'P 1234', 'bon' of 'kantoor'</span>`;
+            }
+
+            const visibleCount = row.visibleCodesCount || 1;
+            let codeSlotsHtml = "";
+            for (let sIdx = 0; sIdx < visibleCount; sIdx++) {
+                const entry = row.entries[sIdx] || { code: "", tijd: "" };
+                const isRequiredFirst = sIdx === 0;
+                const hasData = (entry.code && entry.code !== "") || (entry.tijd !== "" && entry.tijd !== null && entry.tijd !== undefined);
+
+                codeSlotsHtml += `
+                    <div class="grid grid-cols-12 gap-1.5 sm:gap-2 items-center p-2 rounded-xl ${isRequiredFirst ? 'bg-white border border-slate-200 shadow-2xs' : (hasData ? 'bg-white border border-blue-200' : 'bg-slate-100/80 border border-slate-200/80')}" id="slot-${dIdx}-${rIdx}-${sIdx}">
+                        <div class="col-span-1 text-center">
+                            <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-xs font-extrabold ${isRequiredFirst ? 'bg-blue-600 text-white' : 'bg-slate-200 text-slate-700'}" title="Code ${sIdx + 1}">
+                                ${sIdx + 1}
+                            </span>
+                        </div>
+
+                        <div class="${isRequiredFirst ? 'col-span-7 sm:col-span-8' : 'col-span-6 sm:col-span-7'}">
+                            <select id="code-${dIdx}-${rIdx}-${sIdx}" onchange="handleCodeSelectChange(${dIdx}, ${rIdx}, ${sIdx}, this.value)" class="w-full px-2.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                                ${buildCodeSelectOptions(entry.code)}
+                            </select>
+                        </div>
+
+                        <div class="col-span-4 sm:col-span-3">
+                            <div class="relative flex items-center">
+                                <input type="number" step="0.25" min="0" max="24" id="tijd-${dIdx}-${rIdx}-${sIdx}" placeholder="${isRequiredFirst ? 'Uren *' : 'Uren'}" value="${entry.tijd !== undefined && entry.tijd !== null ? entry.tijd : ''}" oninput="handleEntryTimeChange(${dIdx}, ${rIdx}, ${sIdx}, this.value)" class="w-full pl-2.5 pr-6 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs sm:text-sm font-bold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-600">
+                                <span class="absolute right-2 text-xs font-semibold text-slate-400 pointer-events-none">u</span>
+                            </div>
+                        </div>
+
+                        ${!isRequiredFirst ? `
+                            <div class="col-span-1 text-right">
+                                <button type="button" onclick="collapseExtraCodeSlot(${dIdx}, ${rIdx}, ${sIdx})" class="w-7 h-7 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 inline-flex items-center justify-center transition" title="Code ${sIdx + 1} inklappen / verwijderen">
+                                    <i class="fa-solid fa-xmark text-sm"></i>
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            const expandCodeButtonHtml = visibleCount < MAX_CODES_PER_ROW ? `
+                <div class="pt-1 flex items-center justify-between">
+                    <button type="button" onclick="expandNextCodeSlot(${dIdx}, ${rIdx})" class="text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-xl flex items-center space-x-1.5 transition active:scale-95">
+                        <i class="fa-solid fa-circle-plus text-blue-600"></i>
+                        <span>Extra code uitklappen / toevoegen (${visibleCount}/${MAX_CODES_PER_ROW})</span>
+                    </button>
+                    ${visibleCount > 1 ? `<span class="text-[11px] text-slate-400 font-medium">${visibleCount} van ${MAX_CODES_PER_ROW} codes geopend</span>` : ''}
+                </div>
+            ` : `
+                <div class="pt-1 flex items-center justify-between">
+                    <span class="text-[11px] font-semibold text-slate-500">
+                        <i class="fa-solid fa-check text-emerald-600 mr-1"></i>Alle ${MAX_CODES_PER_ROW} codes voor dit project zijn uitgeklapt
+                    </span>
+                </div>
+            `;
+
+            return `
+                <div id="rowCard-${dIdx}-${rIdx}" class="${rIdx > 0 ? 'pt-4' : ''}">
+                    <div class="bg-slate-50/80 rounded-2xl p-3 sm:p-4 border border-slate-200 transition" id="rowBox-${dIdx}-${rIdx}">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <div class="flex items-center space-x-2">
+                                <span class="px-2.5 py-0.5 rounded-lg bg-slate-200 text-slate-800 text-[11px] font-extrabold uppercase tracking-wider">
+                                    Project ${rIdx + 1}
+                                </span>
+                                <div id="prjStatus-${dIdx}-${rIdx}">${prjStatusBadge}</div>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <span class="text-xs font-bold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                                    Totaal: <strong id="rowTotal-${dIdx}-${rIdx}" class="text-blue-700">${formatHours(rowTotal)}</strong> u
+                                </span>
+                                <button onclick="removeProjectRow(${dIdx}, ${rIdx})" class="text-slate-400 hover:text-red-600 p-1.5 rounded-lg transition" title="Verwijder projectregel">
+                                    <i class="fa-solid fa-trash-can text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-12 gap-3 mb-3">
+                            <div class="sm:col-span-5">
+                                <div class="flex flex-wrap items-center justify-between gap-1 mb-1">
+                                    <label for="prjnr-${dIdx}-${rIdx}" class="block text-xs font-bold text-slate-700">
+                                        Projectnr. <span class="text-red-500">*</span>
+                                    </label>
+                                    <div class="flex items-center space-x-1">
+                                        <button type="button" onclick="setProjectPrefix(${dIdx}, ${rIdx}, 'P ')" class="text-[10px] font-extrabold bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded-md transition" title="Start met P + spatie + 4 cijfers">P + 4 cijfers</button>
+                                        <button type="button" onclick="setProjectPrefix(${dIdx}, ${rIdx}, 'bon')" class="text-[10px] font-extrabold bg-amber-100 hover:bg-amber-200 text-amber-900 px-2 py-0.5 rounded-md transition" title="Vul 'bon' in">bon</button>
+                                        <button type="button" onclick="setProjectPrefix(${dIdx}, ${rIdx}, 'kantoor')" class="text-[10px] font-extrabold bg-purple-100 hover:bg-purple-200 text-purple-900 px-2 py-0.5 rounded-md transition" title="Vul 'kantoor' in">kantoor</button>
+                                    </div>
+                                </div>
+                                <input type="text" id="prjnr-${dIdx}-${rIdx}" placeholder="P 1234, bon of kantoor" value="${escapeHtml(row.prjnr)}" onfocus="setActiveRow(${dIdx}, ${rIdx})" onblur="handleProjectNumberBlur(${dIdx}, ${rIdx})" oninput="handleProjectNumberInput(${dIdx}, ${rIdx}, this.value)" class="w-full px-3 py-2.5 bg-white border ${isPrjFilled ? (isPrjValid ? 'border-emerald-500' : 'border-red-400') : 'border-slate-300'} rounded-xl text-sm font-extrabold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600">
+                            </div>
+
+                            <div class="sm:col-span-7">
+                                <label for="adres-${dIdx}-${rIdx}" class="block text-xs font-bold text-slate-700 mb-1">
+                                    Projectnaam / Adres <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" id="adres-${dIdx}-${rIdx}" placeholder="Naam klant, project of werklocatie" value="${escapeHtml(row.adres)}" onfocus="setActiveRow(${dIdx}, ${rIdx})" onblur="rememberRecentProject(${dIdx}, ${rIdx})" oninput="handleRowFieldChange(${dIdx}, ${rIdx}, 'adres', this.value)" class="w-full px-3 py-2.5 bg-white border border-slate-300 rounded-xl text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-600">
+                            </div>
+                        </div>
+
+                        <div class="space-y-1.5">
+                            <div class="flex items-center justify-between px-1">
+                                <span class="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                                    Codering &amp; Uren (max. 5 codes per project)
+                                </span>
+                            </div>
+                            ${codeSlotsHtml}
+                            ${expandCodeButtonHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // =========================================================================
+        // 6. EVENT HANDLERS
+        // =========================================================================
+        function expandNextCodeSlot(dIdx, rIdx) {
+            const row = appState.days[dIdx].rows[rIdx];
+            normalizeRowStructure(row);
+            if (row.visibleCodesCount < MAX_CODES_PER_ROW) {
+                row.visibleCodesCount += 1;
+                saveState();
+                renderAllDays();
+                updateTotalsAndUI();
+            }
+        }
+
+        function collapseExtraCodeSlot(dIdx, rIdx, sIdx) {
+            if (sIdx <= 0) return;
+            const row = appState.days[dIdx].rows[rIdx];
+            normalizeRowStructure(row);
+            row.entries.splice(sIdx, 1);
+            row.entries.push({ code: "", tijd: "" });
+            row.visibleCodesCount = Math.max(1, (row.visibleCodesCount || 2) - 1);
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+        }
+
+        function setActiveRow(dIdx, rIdx) {
+            activeRowForChipFill = { dIdx, rIdx };
+        }
+
+        function setProjectPrefix(dIdx, rIdx, prefixVal) {
+            const row = appState.days[dIdx].rows[rIdx];
+            const inputEl = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+            if (prefixVal === 'bon' || prefixVal === 'kantoor') {
+                row.prjnr = prefixVal;
+                if (inputEl) inputEl.value = prefixVal;
+            } else {
+                const digitsMatch = (row.prjnr || "").match(/(\d{4})/);
+                row.prjnr = digitsMatch ? `P ${digitsMatch[1]}` : "P ";
+                if (inputEl) {
+                    inputEl.value = row.prjnr;
+                    inputEl.focus();
+                }
+            }
+            updateProjectValidationBadge(dIdx, rIdx);
+            clearRowValidationHighlight(dIdx, rIdx);
+            saveState();
+            renderDayTabsMenu();
+        }
+
+        function handleProjectNumberInput(dIdx, rIdx, value) {
+            const row = appState.days[dIdx].rows[rIdx];
+            if (/^\d{4}$/.test(value.trim()) || /^bon$/i.test(value.trim()) || /^kantoor$/i.test(value.trim()) || /^[pP]\d{4}$/.test(value.trim())) {
+                const formatted = autoFormatProjectNumber(value);
+                row.prjnr = formatted;
+                const inputEl = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+                if (inputEl && inputEl.value !== formatted) inputEl.value = formatted;
+            } else {
+                row.prjnr = value;
+            }
+
+            const lowPrj = row.prjnr.trim().toLowerCase();
+            if (isValidProjectNumber(row.prjnr) && lowPrj !== 'bon' && lowPrj !== 'kantoor' && (!row.adres || row.adres.trim() === "")) {
+                const knownAdres = findKnownProjectAddress(row.prjnr);
+                if (knownAdres) {
+                    row.adres = knownAdres;
+                    const adrEl = document.getElementById(`adres-${dIdx}-${rIdx}`);
+                    if (adrEl) adrEl.value = knownAdres;
+                }
+            }
+
+            updateProjectValidationBadge(dIdx, rIdx);
+            clearRowValidationHighlight(dIdx, rIdx);
+            saveState();
+            renderDayTabsMenu();
+        }
+
+        function handleProjectNumberBlur(dIdx, rIdx) {
+            const row = appState.days[dIdx].rows[rIdx];
+            const formatted = autoFormatProjectNumber(row.prjnr);
+            row.prjnr = formatted;
+            const inputEl = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+            if (inputEl) inputEl.value = formatted;
+            updateProjectValidationBadge(dIdx, rIdx);
+            rememberRecentProject(dIdx, rIdx);
+            saveState();
+            renderDayTabsMenu();
+        }
+
+        function updateProjectValidationBadge(dIdx, rIdx) {
+            const row = appState.days[dIdx].rows[rIdx];
+            const prjTrimmed = (row.prjnr || "").trim();
+            const isValid = isValidProjectNumber(prjTrimmed);
+            const isFilled = prjTrimmed !== "";
+
+            const statusEl = document.getElementById(`prjStatus-${dIdx}-${rIdx}`);
+            const inputEl = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+
+            if (statusEl) {
+                if (!isFilled) {
+                    statusEl.innerHTML = `<span class="text-[10px] text-slate-400 font-medium">Format: <strong>P 1234</strong>, <strong>bon</strong> of <strong>kantoor</strong></span>`;
+                } else if (isValid) {
+                    statusEl.innerHTML = `<span class="text-[10px] text-emerald-600 font-bold flex items-center"><i class="fa-solid fa-circle-check mr-1"></i>Geldig (${escapeHtml(prjTrimmed)})</span>`;
+                } else {
+                    statusEl.innerHTML = `<span class="text-[10px] text-red-600 font-bold flex items-center"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Gebruik 'P 1234', 'bon' of 'kantoor'</span>`;
+                }
+            }
+
+            if (inputEl) {
+                inputEl.classList.remove('border-slate-300', 'border-emerald-500', 'border-red-400');
+                if (!isFilled) inputEl.classList.add('border-slate-300');
+                else if (isValid) inputEl.classList.add('border-emerald-500');
+                else inputEl.classList.add('border-red-400');
+            }
+        }
+
+        function findKnownProjectAddress(prjnr) {
+            try {
+                const list = JSON.parse(localStorage.getItem(STORAGE_RECENT_PROJECTS_KEY) || "[]");
+                const found = list.find(item => item.prjnr.toLowerCase() === prjnr.trim().toLowerCase());
+                return found ? found.adres : null;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function handleRowFieldChange(dIdx, rIdx, field, value) {
+            appState.days[dIdx].rows[rIdx][field] = value;
+            clearRowValidationHighlight(dIdx, rIdx);
+            saveState();
+            renderDayTabsMenu();
+        }
+
+        function handleCodeSelectChange(dIdx, rIdx, sIdx, codeValue) {
+            const row = appState.days[dIdx].rows[rIdx];
+            row.entries[sIdx].code = codeValue;
+
+            if (codeValue && CODE_MAP[codeValue]) {
+                const codeObj = CODE_MAP[codeValue];
+                if (codeObj.isAbsence) {
+                    if (!row.prjnr || row.prjnr.trim() === "") {
+                        row.prjnr = "kantoor";
+                        const prjInput = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+                        if (prjInput) prjInput.value = "kantoor";
+                        updateProjectValidationBadge(dIdx, rIdx);
+                    }
+                    if (!row.adres || row.adres.trim() === "") {
+                        row.adres = codeObj.label;
+                        const adrInput = document.getElementById(`adres-${dIdx}-${rIdx}`);
+                        if (adrInput) adrInput.value = codeObj.label;
+                    }
+                }
+            }
+
+            clearRowValidationHighlight(dIdx, rIdx);
+            saveState();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+        }
+
+        function handleEntryTimeChange(dIdx, rIdx, sIdx, timeValue) {
+            const row = appState.days[dIdx].rows[rIdx];
+            row.entries[sIdx].tijd = timeValue;
+            clearRowValidationHighlight(dIdx, rIdx);
+            saveState();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+        }
+
+        function addProjectRow(dIdx) {
+            if (appState.days[dIdx].rows.length >= 10) {
+                showToast("Maximaal 10 projectregels per dag bereikt.");
+                return;
+            }
+            appState.days[dIdx].rows.push(createEmptyProjectRow());
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+        }
+
+        function addAbsenceQuickRow(dIdx) {
+            const day = appState.days[dIdx];
+            let targetRow = null;
+            if (day.rows.length === 1 && isRowCompletelyEmpty(day.rows[0])) {
+                targetRow = day.rows[0];
+            } else {
+                targetRow = createEmptyProjectRow();
+                day.rows.push(targetRow);
+            }
+
+            targetRow.prjnr = "kantoor";
+            targetRow.adres = "VRIJ/SNIPPERDAG/VAKANTIE";
+            targetRow.visibleCodesCount = 1;
+            targetRow.entries[0] = { code: "303", tijd: "8" };
+
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+            showToast("Verlofregel met projectnr. 'kantoor' ingevuld!");
+        }
+
+        function removeProjectRow(dIdx, rIdx) {
+            const day = appState.days[dIdx];
+            if (day.rows.length <= 1) day.rows[0] = createEmptyProjectRow();
+            else day.rows.splice(rIdx, 1);
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+        }
+
+        function copyPreviousDay(dIdx) {
+            if (dIdx <= 0) return;
+            const prevDay = appState.days[dIdx - 1];
+            const activePrevRows = prevDay.rows.filter(r => !isRowCompletelyEmpty(r));
+
+            if (activePrevRows.length === 0) {
+                showToast(`Geen ingevulde regels op ${prevDay.dayName.toLowerCase()} om te kopiëren.`);
+                return;
+            }
+
+            appState.days[dIdx].rows = activePrevRows.map(r => ({
+                id: 'row_' + Math.random().toString(36).substr(2, 9),
+                prjnr: r.prjnr,
+                adres: r.adres,
+                visibleCodesCount: r.visibleCodesCount || getHighestFilledSlotCount(r.entries),
+                entries: r.entries.map(e => ({ code: e.code, tijd: e.tijd }))
+            }));
+
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+            showToast(`${prevDay.dayName} gekopieerd naar ${appState.days[dIdx].dayName.toLowerCase()}!`);
+        }
+
+        // =========================================================================
+        // 7. RECENT PROJECTS QUICK CHIPS
+        // =========================================================================
+        function rememberRecentProject(dIdx, rIdx) {
+            const row = appState.days[dIdx]?.rows[rIdx];
+            if (!row || !row.prjnr || !row.adres) return;
+            const prjnr = autoFormatProjectNumber(row.prjnr);
+            const adres = row.adres.trim();
+            if (!isValidProjectNumber(prjnr) || adres === "" || prjnr.toLowerCase() === "bon" || prjnr.toLowerCase() === "kantoor") return;
+
+            let list = [];
+            try {
+                list = JSON.parse(localStorage.getItem(STORAGE_RECENT_PROJECTS_KEY) || "[]");
+            } catch (e) { list = []; }
+
+            list = list.filter(item => item.prjnr.toLowerCase() !== prjnr.toLowerCase());
+            list.unshift({ prjnr, adres });
+            list = list.slice(0, 6);
+            localStorage.setItem(STORAGE_RECENT_PROJECTS_KEY, JSON.stringify(list));
+            renderRecentProjectsBar();
+        }
+
+        function renderRecentProjectsBar() {
+            let list = [];
+            try {
+                list = JSON.parse(localStorage.getItem(STORAGE_RECENT_PROJECTS_KEY) || "[]");
+            } catch (e) { list = []; }
+            list = list.filter(item => isValidProjectNumber(item.prjnr));
+
+            const bar = document.getElementById('recentProjectsBar');
+            const chipsContainer = document.getElementById('recentProjectsChips');
+            if (!list || list.length === 0) {
+                bar.classList.add('hidden');
+                return;
+            }
+
+            bar.classList.remove('hidden');
+            chipsContainer.innerHTML = list.map((item, idx) => `
+                <button type="button" onclick="fillActiveRowWithProject(${idx})" class="text-xs bg-slate-100 hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg font-medium transition flex items-center space-x-1" title="Tik om in te vullen op de geopende dag">
+                    <span class="font-extrabold text-blue-700">${escapeHtml(item.prjnr)}</span>
+                    <span class="text-slate-400">-</span>
+                    <span class="truncate max-w-[130px]">${escapeHtml(item.adres)}</span>
+                </button>
+            `).join('');
+        }
+
+        function fillActiveRowWithProject(chipIdx) {
+            let list = [];
+            try {
+                list = JSON.parse(localStorage.getItem(STORAGE_RECENT_PROJECTS_KEY) || "[]");
+                list = list.filter(item => isValidProjectNumber(item.prjnr));
+            } catch (e) { return; }
+
+            const item = list[chipIdx];
+            if (!item) return;
+
+            const defaultDayIdx = appState.selectedDayTab === 'all' ? 0 : appState.selectedDayTab;
+            const target = activeRowForChipFill || { dIdx: defaultDayIdx, rIdx: 0 };
+            const row = appState.days[target.dIdx]?.rows[target.rIdx];
+            if (!row) return;
+
+            row.prjnr = item.prjnr;
+            row.adres = item.adres;
+            saveState();
+            renderAllDays();
+            updateTotalsAndUI();
+            renderDayTabsMenu();
+            showToast(`Project ${item.prjnr} ingevuld op ${DAY_NAMES[target.dIdx].toLowerCase()}`);
+        }
+
+        // =========================================================================
+        // 8. CALCULATIONS & TOTALS
+        // =========================================================================
+        function isRowCompletelyEmpty(row) {
+            const hasPrj = row.prjnr && row.prjnr.trim() !== "";
+            const hasAdr = row.adres && row.adres.trim() !== "";
+            const hasEntries = (row.entries || []).some(e => (e.code && e.code !== "") || (e.tijd && parseFloat(e.tijd) > 0));
+            return !hasPrj && !hasAdr && !hasEntries;
+        }
+
+        function calculateRowTotal(row) {
+            let sum = 0;
+            for (let i = 0; i < MAX_CODES_PER_ROW; i++) {
+                const val = parseFloat(row.entries[i]?.tijd);
+                if (!isNaN(val) && val > 0) sum += val;
+            }
+            return sum;
+        }
+
+        function calculateDayTotal(day) {
+            return day.rows.reduce((acc, row) => acc + calculateRowTotal(row), 0);
+        }
+
+        function calculateWeekTotal() {
+            return appState.days.reduce((acc, day) => acc + calculateDayTotal(day), 0);
+        }
+
+        function formatHours(num) {
+            return Number.isInteger(num) ? num.toFixed(1) : num.toFixed(2).replace(/0$/, '');
+        }
+
+        function updateTotalsAndUI() {
+            let weekTotal = 0;
+
+            appState.days.forEach((day, dIdx) => {
+                let dayTotal = 0;
+                day.rows.forEach((row, rIdx) => {
+                    const rTot = calculateRowTotal(row);
+                    dayTotal += rTot;
+                    const rowTotEl = document.getElementById(`rowTotal-${dIdx}-${rIdx}`);
+                    if (rowTotEl) rowTotEl.textContent = formatHours(rTot);
+                });
+
+                weekTotal += dayTotal;
+
+                const dayBadge = document.getElementById(`dayTotalBadge-${dIdx}`);
+                if (dayBadge) dayBadge.textContent = `${formatHours(dayTotal)} uur`;
+
+                const navHours = document.getElementById(`navHours-${dIdx}`);
+                if (navHours) navHours.textContent = `${formatHours(dayTotal)}u`;
+            });
+
+            document.getElementById('stickyWeekTotal').textContent = formatHours(weekTotal);
+        }
+
+        // =========================================================================
+        // 9. STRICT VALIDATION
+        // =========================================================================
+        function clearAllValidationHighlights() {
+            document.getElementById('employeeName').classList.remove('border-red-500', 'ring-2', 'ring-red-400');
+            document.getElementById('weekNumber').classList.remove('border-red-500', 'ring-2', 'ring-red-400');
+
+            appState.days.forEach((day, dIdx) => {
+                day.rows.forEach((row, rIdx) => {
+                    clearRowValidationHighlight(dIdx, rIdx);
+                });
+            });
+        }
+
+        function clearRowValidationHighlight(dIdx, rIdx) {
+            const box = document.getElementById(`rowBox-${dIdx}-${rIdx}`);
+            if (box) box.classList.remove('border-red-500', 'bg-red-50/40');
+
+            const prj = document.getElementById(`prjnr-${dIdx}-${rIdx}`);
+            if (prj) prj.classList.remove('border-red-500', 'bg-red-50');
+
+            const adr = document.getElementById(`adres-${dIdx}-${rIdx}`);
+            if (adr) adr.classList.remove('border-red-500', 'bg-red-50');
+
+            for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
+                const cEl = document.getElementById(`code-${dIdx}-${rIdx}-${s}`);
+                const tEl = document.getElementById(`tijd-${dIdx}-${rIdx}-${s}`);
+                if (cEl) cEl.classList.remove('border-red-500', 'bg-red-50');
+                if (tEl) tEl.classList.remove('border-red-500', 'bg-red-50');
+            }
+        }
+
+        function hideValidationBanner() {
+            document.getElementById('validationAlert').classList.add('hidden');
+        }
+
+        function validateWeeklijst() {
+            clearAllValidationHighlights();
+            const errors = [];
+            let firstInvalidDayIndex = null;
+            let firstInvalidElementId = null;
+
+            const registerErrorField = (dIdx, elementId) => {
+                if (firstInvalidDayIndex === null && dIdx !== null) firstInvalidDayIndex = dIdx;
+                if (!firstInvalidElementId && elementId) firstInvalidElementId = elementId;
+            };
+
+            const nameVal = (appState.employeeName || "").trim();
+            if (!nameVal) {
+                errors.push("Vul bovenaan je <strong>Naam</strong> in.");
+                registerErrorField(null, 'employeeName');
+            }
+
+            const weekVal = parseInt(appState.weekNumber, 10);
+            if (isNaN(weekVal) || weekVal < 1 || weekVal > 53) {
+                errors.push("Vul een geldig <strong>Weeknummer (1-53)</strong> in.");
+                registerErrorField(null, 'weekNumber');
+            }
+
+            let totalActiveRows = 0;
+
+            appState.days.forEach((day, dIdx) => {
+                day.rows.forEach((row, rIdx) => {
+                    if (isRowCompletelyEmpty(row)) return;
+                    totalActiveRows++;
+                    row.prjnr = autoFormatProjectNumber(row.prjnr);
+                    const rowLabel = `${day.dayName} (Project ${rIdx + 1})`;
+
+                    if (!row.prjnr || row.prjnr.trim() === "") {
+                        errors.push(`<strong>${rowLabel}</strong>: Projectnummer ontbreekt (verplicht: <strong>P 1234</strong>, <strong>bon</strong> of <strong>kantoor</strong>).`);
+                        registerErrorField(dIdx, `prjnr-${dIdx}-${rIdx}`);
+                    } else if (!isValidProjectNumber(row.prjnr)) {
+                        errors.push(`<strong>${rowLabel}</strong>: Projectnummer <em>"${escapeHtml(row.prjnr)}"</em> is ongeldig. Moet beginnen met <strong>P + spatie + 4 cijfers</strong> (bijv. <strong>P 1234</strong>), <strong>bon</strong> of <strong>kantoor</strong>.`);
+                        registerErrorField(dIdx, `prjnr-${dIdx}-${rIdx}`);
+                    }
+
+                    if (!row.adres || row.adres.trim() === "") {
+                        errors.push(`<strong>${rowLabel}</strong>: Projectnaam / Adres ontbreekt.`);
+                        registerErrorField(dIdx, `adres-${dIdx}-${rIdx}`);
+                    }
+
+                    let hasAtLeastOneValidCodeTime = false;
+                    for (let sIdx = 0; sIdx < MAX_CODES_PER_ROW; sIdx++) {
+                        const entry = row.entries[sIdx] || { code: "", tijd: "" };
+                        const hasCode = entry.code && entry.code.trim() !== "";
+                        const timeNum = parseFloat(entry.tijd);
+                        const hasTime = !isNaN(timeNum) && timeNum > 0;
+
+                        if (hasCode && !hasTime) {
+                            errors.push(`<strong>${rowLabel} - Code ${sIdx + 1}</strong>: Wel code (${entry.code}) gekozen, maar nog geen <strong>Tijd (uren)</strong> ingevuld.`);
+                            registerErrorField(dIdx, `tijd-${dIdx}-${rIdx}-${sIdx}`);
+                        } else if (!hasCode && hasTime) {
+                            errors.push(`<strong>${rowLabel} - Code ${sIdx + 1}</strong>: Wel ${entry.tijd} uur ingevuld, maar nog geen <strong>Code</strong> geselecteerd.`);
+                            registerErrorField(dIdx, `code-${dIdx}-${rIdx}-${sIdx}`);
+                        } else if (hasCode && hasTime) {
+                            hasAtLeastOneValidCodeTime = true;
+                        }
+                    }
+
+                    if (!hasAtLeastOneValidCodeTime) {
+                        errors.push(`<strong>${rowLabel}</strong>: Vul minimaal bij <strong>Code 1</strong> een werkcode én het aantal gewerkte uren in.`);
+                        registerErrorField(dIdx, `code-${dIdx}-${rIdx}-0`);
+                    }
+                });
+            });
+
+            if (totalActiveRows === 0) {
+                errors.push("Er zijn nog geen uren of projectregels ingevuld op deze weeklijst.");
+            }
+
+            renderDayTabsMenu();
+
+            if (errors.length > 0) {
+                if (firstInvalidDayIndex !== null && appState.selectedDayTab !== 'all' && appState.selectedDayTab !== firstInvalidDayIndex) {
+                    appState.selectedDayTab = firstInvalidDayIndex;
+                    saveState();
+                    renderDayTabsMenu();
+                    renderAllDays();
+                    updateTotalsAndUI();
+                } else {
+                    renderAllDays();
+                    updateTotalsAndUI();
+                }
+
+                if (!nameVal) document.getElementById('employeeName')?.classList.add('border-red-500', 'ring-2', 'ring-red-400');
+                if (isNaN(weekVal) || weekVal < 1 || weekVal > 53) document.getElementById('weekNumber')?.classList.add('border-red-500', 'ring-2', 'ring-red-400');
+
+                appState.days.forEach((day, dIdx) => {
+                    day.rows.forEach((row, rIdx) => {
+                        if (isRowCompletelyEmpty(row)) return;
+                        const box = document.getElementById(`rowBox-${dIdx}-${rIdx}`);
+                        let rowHasErr = false;
+
+                        if (!isValidProjectNumber(row.prjnr)) {
+                            document.getElementById(`prjnr-${dIdx}-${rIdx}`)?.classList.add('border-red-500', 'bg-red-50');
+                            rowHasErr = true;
+                        }
+                        if (!row.adres || row.adres.trim() === "") {
+                            document.getElementById(`adres-${dIdx}-${rIdx}`)?.classList.add('border-red-500', 'bg-red-50');
+                            rowHasErr = true;
+                        }
+
+                        let hasValidPair = false;
+                        for (let sIdx = 0; sIdx < MAX_CODES_PER_ROW; sIdx++) {
+                            const entry = row.entries[sIdx] || { code: "", tijd: "" };
+                            const hasCode = entry.code && entry.code.trim() !== "";
+                            const timeNum = parseFloat(entry.tijd);
+                            const hasTime = !isNaN(timeNum) && timeNum > 0;
+
+                            if (hasCode && !hasTime) {
+                                document.getElementById(`tijd-${dIdx}-${rIdx}-${sIdx}`)?.classList.add('border-red-500', 'bg-red-50');
+                                rowHasErr = true;
+                            } else if (!hasCode && hasTime) {
+                                document.getElementById(`code-${dIdx}-${rIdx}-${sIdx}`)?.classList.add('border-red-500', 'bg-red-50');
+                                rowHasErr = true;
+                            } else if (hasCode && hasTime) {
+                                hasValidPair = true;
+                            }
+                        }
+
+                        if (!hasValidPair) {
+                            document.getElementById(`code-${dIdx}-${rIdx}-0`)?.classList.add('border-red-500', 'bg-red-50');
+                            document.getElementById(`tijd-${dIdx}-${rIdx}-0`)?.classList.add('border-red-500', 'bg-red-50');
+                            rowHasErr = true;
+                        }
+
+                        if (rowHasErr && box) box.classList.add('border-red-500', 'bg-red-50/40');
+                    });
+                });
+
+                const alertBox = document.getElementById('validationAlert');
+                const listEl = document.getElementById('validationErrorList');
+                listEl.innerHTML = errors.map(e => `<li>${e}</li>`).join('');
+                alertBox.classList.remove('hidden');
+
+                const targetEl = firstInvalidElementId ? document.getElementById(firstInvalidElementId) : null;
+                if (targetEl) targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                else window.scrollTo({ top: 0, behavior: 'smooth' });
+                return false;
+            }
+
+            hideValidationBanner();
+            return true;
+        }
+
+        function validateApproveAndOpenExportModal() {
+            if (!validateWeeklijst()) return;
+            syncCurrentWeekToArchive(true);
+            saveState();
+
+            document.getElementById('summaryMonteur').textContent = appState.employeeName.trim();
+            document.getElementById('summaryWeek').textContent = `Week ${appState.weekNumber}`;
+            document.getElementById('summaryTotal').textContent = `${formatHours(calculateWeekTotal())} uur`;
+
+            const modal = document.getElementById('exportModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            showToast(`Week ${appState.weekNumber} akkoord & opgeslagen in de app!`);
+        }
+
+        function closeExportModal() {
+            const modal = document.getElementById('exportModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // =========================================================================
+        // 10. EXPORT GENERATORS: ECHT EXCEL (.XLSX VIA SHEETJS), CSV, MAIL & PRINT
+        // =========================================================================
+        function getCleanFilenameBase() {
+            const cleanName = (appState.employeeName || "Monteur").trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+            const week = String(appState.weekNumber || "00").padStart(2, '0');
+            const year = appState.year || new Date().getFullYear();
+            return `Weeklijst_${year}_Wk${week}_${cleanName}`;
+        }
+
+        function generateExcelWorkbook() {
+            if (typeof XLSX === 'undefined') {
+                alert("De Excel-bibliotheek kon niet worden geladen. Controleer je internetverbinding.");
+                return null;
+            }
+
+            const weekTotal = calculateWeekTotal();
+            const aoa = [];
+            const merges = [];
+
+            // Rij 1: Bedrijfsnaam en Monteur
+            aoa.push([
+                "Installatiebedrijf Rijsbergen BV", "", "", "", "", "",
+                "NAAM :", "",
+                appState.employeeName || "", "", "", "", ""
+            ]);
+            merges.push(
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+                { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+                { s: { r: 0, c: 8 }, e: { r: 0, c: 12 } }
+            );
+
+            // Rij 2: Koppen en Weeknummer
+            aoa.push([
+                "prjnr.", "adres", "", "", "", "", "", "", "", "",
+                "WEEKNR. :", "",
+                Number(appState.weekNumber) || String(appState.weekNumber || "")
+            ]);
+            merges.push({ s: { r: 1, c: 10 }, e: { r: 1, c: 11 } });
+
+            // Dagen Maandag t/m Zondag
+            appState.days.forEach((day, dIdx) => {
+                const dateStr = formatDayDate(appState.mondayDate, dIdx);
+                const activeRows = day.rows.filter(r => !isRowCompletelyEmpty(r));
+                const minRows = dIdx < 5 ? 4 : (activeRows.length > 0 ? activeRows.length : 1);
+                const rowCount = Math.max(activeRows.length, minRows);
+
+                const headerRowIdx = aoa.length;
+                aoa.push([
+                    `${day.dayName} (${dateStr})`, "",
+                    "code 1", "tijd 1",
+                    "code 2", "tijd 2",
+                    "code 3", "tijd 3",
+                    "code 4", "tijd 4",
+                    "code 5", "tijd 5",
+                    "totaal"
+                ]);
+                merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 1 } });
+
+                for (let i = 0; i < rowCount; i++) {
+                    const r = activeRows[i];
+                    if (r) {
+                        const rTot = calculateRowTotal(r);
+                        const rowData = [String(r.prjnr || ""), String(r.adres || "")];
+                        for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
+                            const e = r.entries[s] || { code: "", tijd: "" };
+                            rowData.push(e.code ? String(e.code) : "");
+                            const tNum = parseFloat(e.tijd);
+                            rowData.push(!isNaN(tNum) && tNum > 0 ? tNum : "");
+                        }
+                        rowData.push(Number(rTot.toFixed(2)));
+                        aoa.push(rowData);
+                    } else {
+                        aoa.push(["", "", "", "", "", "", "", "", "", "", "", "", 0]);
+                    }
+                }
+            });
+
+            // Weektotaal
+            const totalRowIdx = aoa.length;
+            aoa.push([
+                "", "", "", "", "", "", "", "", "", "",
+                "WEEKTOTAAL", "",
+                Number(weekTotal.toFixed(2))
+            ]);
+            merges.push({ s: { r: totalRowIdx, c: 10 }, e: { r: totalRowIdx, c: 11 } });
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!merges'] = merges;
+            ws['!cols'] = [
+                { wch: 12 }, // prjnr.
+                { wch: 32 }, // adres
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 10 }  // totaal
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Weeklijst");
+            return wb;
+        }
+
+        function generateExcelBlob() {
+            const wb = generateExcelWorkbook();
+            if (!wb) return null;
+            const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+            return new Blob([wbout], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+        }
+
+        function downloadExcelFile() {
+            const blob = generateExcelBlob();
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${getCleanFilenameBase()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Excel-weeklijst (.xlsx) gedownload!");
+        }
+
+        function generateCSVContent() {
+            const lines = [];
+            lines.push(`"Installatiebedrijf Rijsbergen BV";;;;;;"NAAM :";"${appState.employeeName}";;;;;`);
+            lines.push(`"prjnr.";"adres";;;;;;;;;"WEEKNR. :";"${appState.weekNumber}";`);
+
+            appState.days.forEach((day, dIdx) => {
+                const dateStr = formatDayDate(appState.mondayDate, dIdx);
+                lines.push(`"${day.dayName} (${dateStr})";"";"code 1";"tijd 1";"code 2";"tijd 2";"code 3";"tijd 3";"code 4";"tijd 4";"code 5";"tijd 5";"totaal"`);
+
+                const activeRows = day.rows.filter(r => !isRowCompletelyEmpty(r));
+                activeRows.forEach(r => {
+                    const rTot = calculateRowTotal(r);
+                    const cols = [
+                        `"${(r.prjnr || '').replace(/"/g, '""')}"`,
+                        `"${(r.adres || '').replace(/"/g, '""')}"`
+                    ];
+                    for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
+                        const e = r.entries[s] || { code: "", tijd: "" };
+                        cols.push(`"${e.code || ''}"`);
+                        cols.push(`"${e.tijd ? String(e.tijd).replace('.', ',') : ''}"`);
+                    }
+                    cols.push(`"${String(formatHours(rTot)).replace('.', ',')}"`);
+                    lines.push(cols.join(';'));
+                });
+            });
+
+            lines.push(`"";"";"";"";"";"";"";"";"";"";"WEEKTOTAAL";"${String(formatHours(calculateWeekTotal())).replace('.', ',')}"`);
+            return "\uFEFF" + lines.join("\r\n");
+        }
+
+        function downloadCSVFile() {
+            const csv = generateCSVContent();
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${getCleanFilenameBase()}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("CSV-bestand (.csv) gedownload!");
+        }
+
+        function generatePlainTextSummary() {
+            const weekTotal = calculateWeekTotal();
+            let text = `WEEKLIJST - INSTALLATIEBEDRIJF RIJSBERGEN BV\n`;
+            text += `================================================\n`;
+            text += `Monteur : ${appState.employeeName}\n`;
+            text += `Weeknr. : ${appState.weekNumber}\n`;
+            text += `WEEKTOTAAL : ${formatHours(weekTotal)} uur\n`;
+            text += `================================================\n\n`;
+
+            appState.days.forEach((day, dIdx) => {
+                const activeRows = day.rows.filter(r => !isRowCompletelyEmpty(r));
+                const dayTotal = calculateDayTotal(day);
+                const dateStr = formatDayDate(appState.mondayDate, dIdx);
+
+                if (activeRows.length > 0) {
+                    text += `${day.dayName} (${dateStr}) - Dagtotaal: ${formatHours(dayTotal)} uur\n`;
+                    text += `------------------------------------------------\n`;
+                    activeRows.forEach(r => {
+                        const rTot = calculateRowTotal(r);
+                        const codesList = [];
+                        for (let i = 0; i < MAX_CODES_PER_ROW; i++) {
+                            const e = r.entries[i];
+                            if (e && e.code && e.tijd) {
+                                const label = CODE_MAP[e.code] ? CODE_MAP[e.code].label : "";
+                                codesList.push(`Code ${e.code} (${label}): ${e.tijd}u`);
+                            }
+                        }
+                        text += `• Prjnr: ${r.prjnr} | Project/Adres: ${r.adres}\n`;
+                        text += `  ${codesList.join(' + ')}  => Totaal: ${formatHours(rTot)} uur\n`;
+                    });
+                    text += `\n`;
+                }
+            });
+
+            return text;
+        }
+
+        async function shareNativeWithAttachment() {
+            const officeEmail = document.getElementById('officeEmail').value.trim() || DEFAULT_OFFICE_EMAIL;
+            const summaryText = `Aan: ${officeEmail}\n\n` + generatePlainTextSummary();
+            const excelBlob = generateExcelBlob();
+            if (!excelBlob) return;
+
+            const fileName = `${getCleanFilenameBase()}.xlsx`;
+            const file = new File([excelBlob], fileName, {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
+
+            if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                try {
+                    await navigator.share({
+                        title: `Weeklijst Week ${appState.weekNumber} - ${appState.employeeName}`,
+                        text: summaryText,
+                        files: [file]
+                    });
+                    showToast("Excel-weeklijst (.xlsx) bijgevoegd in mailprogramma!");
+                    return;
+                } catch (err) {
+                    if (err.name !== 'AbortError') {
+                        downloadExcelFile();
+                        sendMailto();
+                    }
+                    return;
+                }
+            }
+
+            downloadExcelFile();
+            setTimeout(() => {
+                sendMailto();
+            }, 400);
+        }
+
+        function sendMailto() {
+            const officeEmail = document.getElementById('officeEmail').value.trim() || DEFAULT_OFFICE_EMAIL;
+            const subject = encodeURIComponent(`Weeklijst Week ${appState.weekNumber} - ${appState.employeeName}`);
+            const body = encodeURIComponent(generatePlainTextSummary());
+            window.location.href = `mailto:${officeEmail}?subject=${subject}&body=${body}`;
+        }
+
+        function copySummaryToClipboard() {
+            const text = generatePlainTextSummary();
+            const textarea = document.createElement("textarea");
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand("copy");
+            document.body.removeChild(textarea);
+
+            const btnText = document.getElementById('copyBtnText');
+            btnText.textContent = "Gekopieerd!";
+            showToast("Weeklijst gekopieerd naar klembord");
+            setTimeout(() => {
+                btnText.textContent = "Kopieer Tekst";
+            }, 2000);
+        }
+
+        function printWeeklijst() {
+            const printArea = document.getElementById('printableArea');
+            const weekTotal = calculateWeekTotal();
+
+            let tableRows = "";
+            appState.days.forEach((day, dIdx) => {
+                const dateStr = formatDayDate(appState.mondayDate, dIdx);
+                const activeRows = day.rows.filter(r => !isRowCompletelyEmpty(r));
+                const minRows = dIdx < 5 ? 3 : (activeRows.length > 0 ? activeRows.length : 1);
+                const count = Math.max(activeRows.length, minRows);
+
+                tableRows += `
+                    <tr class="print-day-header">
+                        <td colspan="2">${day.dayName} <span style="font-weight:normal; font-size:7.5pt;">(${dateStr})</span></td>
+                        <td style="text-align:center; width:34px;">c1</td>
+                        <td style="text-align:center; width:34px;">u1</td>
+                        <td style="text-align:center; width:34px;">c2</td>
+                        <td style="text-align:center; width:34px;">u2</td>
+                        <td style="text-align:center; width:34px;">c3</td>
+                        <td style="text-align:center; width:34px;">u3</td>
+                        <td style="text-align:center; width:34px;">c4</td>
+                        <td style="text-align:center; width:34px;">u4</td>
+                        <td style="text-align:center; width:34px;">c5</td>
+                        <td style="text-align:center; width:34px;">u5</td>
+                        <td style="text-align:right; width:45px;">totaal</td>
+                    </tr>
+                `;
+
+                for (let i = 0; i < count; i++) {
+                    const r = activeRows[i];
+                    if (r) {
+                        const rTot = calculateRowTotal(r);
+                        let entryCells = "";
+                        for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
+                            const e = r.entries[s] || { code: "", tijd: "" };
+                            entryCells += `
+                                <td style="text-align:center;">${escapeHtml(e.code)}</td>
+                                <td style="text-align:right;">${escapeHtml(String(e.tijd || ''))}</td>
+                            `;
+                        }
+
+                        tableRows += `
+                            <tr>
+                                <td style="width:70px; font-weight:700;">${escapeHtml(r.prjnr)}</td>
+                                <td>${escapeHtml(r.adres)}</td>
+                                ${entryCells}
+                                <td style="text-align:right; font-weight:700;">${formatHours(rTot)}</td>
+                            </tr>
+                        `;
+                    } else {
+                        tableRows += `
+                            <tr>
+                                <td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td><td>&nbsp;</td>
+                                <td>&nbsp;</td><td>&nbsp;</td>
+                                <td style="text-align:right; color:#64748b;">0.0</td>
+                            </tr>
+                        `;
+                    }
+                }
+            });
+
+            printArea.innerHTML = `
+                <div style="margin-bottom:6px; display:flex; justify-content:space-between; align-items:flex-end;">
+                    <div>
+                        <div style="font-size:13pt; font-weight:800;">Installatiebedrijf Rijsbergen BV</div>
+                        <div style="font-size:8.5pt; color:#334155;">WEEKLIJST MONTEURS (MAANDAG T/M ZONDAG)</div>
+                    </div>
+                    <div style="text-align:right; font-size:9.5pt;">
+                        <div><strong>NAAM:</strong> ${escapeHtml(appState.employeeName)}</div>
+                        <div><strong>WEEKNR.:</strong> ${escapeHtml(String(appState.weekNumber))}</div>
+                    </div>
+                </div>
+                <table class="print-table">
+                    <thead>
+                        <tr>
+                            <th>prjnr.</th>
+                            <th>adres / projectnaam</th>
+                            <th colspan="10">werkzaamheden (5x code + tijd)</th>
+                            <th style="text-align:right;">totaal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${tableRows}
+                        <tr>
+                            <td colspan="10" style="border:none;"></td>
+                            <td colspan="2" style="font-weight:800; text-align:right; background:#e2e8f0;">WEEKTOTAAL</td>
+                            <td style="font-weight:800; text-align:right; background:#e2e8f0;">${formatHours(weekTotal)}</td>
+                        </tr>
+                    </tbody>
+                </table>
+            `;
+
+            window.print();
+        }
+
+        // =========================================================================
+        // 11. MODALS: CODERINGEN, OPGESLAGEN WEKEN & NIEUWE WEEK
+        // =========================================================================
+        function openHistoryModal() {
+            currentHistoryDetailKey = null;
+            renderHistoryModalContent();
+            const modal = document.getElementById('historyModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeHistoryModal() {
+            const modal = document.getElementById('historyModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function viewArchivedWeekDetails(weekKey) {
+            currentHistoryDetailKey = weekKey;
+            renderHistoryModalContent();
+        }
+
+        function loadArchivedWeekIntoEditor(weekKey) {
+            const map = getSavedWeeksMap();
+            const item = map[weekKey];
+            if (!item) return;
+
+            appState = {
+                employeeName: item.employeeName || appState.employeeName,
+                weekNumber: item.weekNumber,
+                year: item.year,
+                mondayDate: item.mondayDate,
+                selectedDayTab: 0,
+                isApproved: Boolean(item.isApproved),
+                approvedAt: item.approvedAt || null,
+                days: (item.days || createDefaultDays()).map(d => ({
+                    ...d,
+                    rows: (d.rows || [createEmptyProjectRow()]).map(normalizeRowStructure)
+                }))
+            };
+
+            document.getElementById('employeeName').value = appState.employeeName || "";
+            document.getElementById('weekNumber').value = appState.weekNumber;
+            document.getElementById('weekYear').value = appState.year;
+            document.getElementById('mondayDate').value = appState.mondayDate;
+
+            saveState();
+            renderDayTabsMenu();
+            renderAllDays();
+            updateTotalsAndUI();
+            closeHistoryModal();
+            showToast(`Week ${item.weekNumber} (${item.year}) geopend in de editor`);
+        }
+
+        function deleteArchivedWeek(weekKey) {
+            const map = getSavedWeeksMap();
+            if (!map[weekKey]) return;
+            delete map[weekKey];
+            saveWeeksMap(map);
+            currentHistoryDetailKey = null;
+            renderHistoryModalContent();
+            showToast("Opgeslagen week verwijderd uit overzicht");
+        }
+
+        function renderHistoryModalContent() {
+            const container = document.getElementById('historyModalContent');
+            if (!container) return;
+
+            const map = getSavedWeeksMap();
+
+            if (currentHistoryDetailKey && map[currentHistoryDetailKey]) {
+                const w = map[currentHistoryDetailKey];
+                const approvedDateStr = w.approvedAt
+                    ? new Date(w.approvedAt).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                    : null;
+
+                let daysDetailHtml = "";
+                (w.days || []).forEach((day, dIdx) => {
+                    const activeRows = (day.rows || []).filter(r => !isRowCompletelyEmpty(r));
+                    const dTot = calculateDayTotal(day);
+                    const dateStr = formatDayDate(w.mondayDate, dIdx);
+
+                    if (activeRows.length > 0) {
+                        daysDetailHtml += `
+                            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                                <div class="bg-slate-800 text-white px-4 py-2.5 flex items-center justify-between">
+                                    <div class="font-bold text-xs sm:text-sm">${day.dayName} <span class="text-slate-300 font-normal">(${dateStr})</span></div>
+                                    <div class="text-xs font-extrabold text-emerald-400">${formatHours(dTot)} uur</div>
+                                </div>
+                                <div class="divide-y divide-slate-100 p-3 space-y-2.5">
+                                    ${activeRows.map((r, rIdx) => {
+                                        const rTot = calculateRowTotal(r);
+                                        const codePills = (r.entries || []).filter(e => e && e.code && e.tijd).map(e => {
+                                            const lbl = CODE_MAP[e.code] ? CODE_MAP[e.code].label : "";
+                                            return `<span class="inline-flex items-center bg-blue-50 text-blue-900 border border-blue-200 px-2.5 py-1 rounded-lg text-xs font-semibold">
+                                                <strong class="mr-1">${escapeHtml(e.code)}</strong> (${escapeHtml(lbl)}): <strong class="ml-1 text-blue-700">${escapeHtml(String(e.tijd))}u</strong>
+                                            </span>`;
+                                        }).join(' ');
+
+                                        return `
+                                            <div class="${rIdx > 0 ? 'pt-2.5' : ''}">
+                                                <div class="flex items-center justify-between">
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="px-2 py-0.5 rounded-md bg-slate-900 text-white font-extrabold text-xs">${escapeHtml(r.prjnr)}</span>
+                                                        <span class="font-bold text-sm text-slate-900">${escapeHtml(r.adres)}</span>
+                                                    </div>
+                                                    <span class="text-xs font-extrabold text-slate-700">${formatHours(rTot)} uur</span>
+                                                </div>
+                                                <div class="flex flex-wrap gap-1.5 mt-2">
+                                                    ${codePills}
+                                                </div>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+
+                if (!daysDetailHtml) {
+                    daysDetailHtml = `<div class="bg-white rounded-2xl p-6 text-center text-slate-500 text-sm border border-slate-200">Geen ingevulde uren in deze week.</div>`;
+                }
+
+                container.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <button onclick="currentHistoryDetailKey = null; renderHistoryModalContent();" class="text-xs sm:text-sm font-bold text-slate-700 hover:text-slate-900 bg-white border border-slate-300 px-3.5 py-2 rounded-xl flex items-center space-x-1.5 shadow-2xs">
+                            <i class="fa-solid fa-arrow-left"></i>
+                            <span>Terug naar alle weken</span>
+                        </button>
+
+                        <button onclick="loadArchivedWeekIntoEditor('${w.key}')" class="text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-xl flex items-center space-x-1.5 shadow-sm">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                            <span>Openen in Weeklijst-editor</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <div class="flex items-center space-x-2">
+                                <span class="text-lg font-extrabold text-slate-900">Week ${escapeHtml(String(w.weekNumber))} (${w.year})</span>
+                                ${w.isApproved ? `
+                                    <span class="text-xs font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                        <i class="fa-solid fa-circle-check mr-1"></i>Akkoord (${approvedDateStr || 'Opgeslagen'})
+                                    </span>
+                                ` : `
+                                    <span class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300">
+                                        Concept
+                                    </span>
+                                `}
+                            </div>
+                            <div class="text-xs text-slate-500 mt-0.5">Monteur: <strong>${escapeHtml(w.employeeName || '-')}</strong> • Startdatum: ${formatDayDate(w.mondayDate, 0)}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-[10px] font-bold uppercase text-slate-400">Weektotaal</div>
+                            <div class="text-xl font-extrabold text-blue-600">${formatHours(w.totalHours || 0)} uur</div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        ${daysDetailHtml}
+                    </div>
+                `;
+                return;
+            }
+
+            const list = Object.values(map).sort((a, b) => {
+                if (b.year !== a.year) return b.year - a.year;
+                return Number(b.weekNumber) - Number(a.weekNumber);
+            });
+
+            if (list.length === 0) {
+                container.innerHTML = `
+                    <div class="bg-white rounded-2xl p-8 text-center border border-slate-200">
+                        <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3 text-xl">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <h4 class="font-bold text-slate-800 text-base">Nog geen opgeslagen weeklijsten</h4>
+                        <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">Zodra je uren invult of een weeklijst akkoord geeft, wordt deze hier automatisch bewaard om altijd terug te kunnen kijken.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const currentKey = getWeekArchiveKey(getYearFromMonday(appState.mondayDate), appState.weekNumber);
+
+            container.innerHTML = list.map(w => {
+                const isCurrent = w.key === currentKey;
+                const approvedDateStr = w.approvedAt
+                    ? new Date(w.approvedAt).toLocaleString('nl-NL', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+                    : null;
+
+                return `
+                    <div class="bg-white rounded-2xl p-4 border ${isCurrent ? 'border-blue-500 ring-2 ring-blue-500/20' : 'border-slate-200'} shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div class="space-y-1">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="px-2.5 py-1 rounded-xl bg-slate-900 text-white font-extrabold text-xs">
+                                    Week ${escapeHtml(String(w.weekNumber))} • ${w.year}
+                                </span>
+                                ${isCurrent ? `<span class="text-[11px] font-extrabold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">Nu geopend</span>` : ''}
+                                ${w.isApproved ? `
+                                    <span class="text-[11px] font-extrabold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center">
+                                        <i class="fa-solid fa-circle-check mr-1"></i>Akkoord ${approvedDateStr ? `(${approvedDateStr})` : ''}
+                                    </span>
+                                ` : `
+                                    <span class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                                        Ingevuld (Concept)
+                                    </span>
+                                `}
+                            </div>
+                            <div class="text-xs text-slate-600 font-medium">
+                                Monteur: <strong>${escapeHtml(w.employeeName || '-')}</strong> • Maandag ${formatDayDate(w.mondayDate, 0)}
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between sm:justify-end gap-2 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                            <div class="text-left sm:text-right mr-2">
+                                <span class="text-[10px] font-bold uppercase text-slate-400 block leading-none">Totaal</span>
+                                <span class="text-base font-extrabold text-blue-600">${formatHours(w.totalHours || 0)} uur</span>
+                            </div>
+
+                            <button onclick="viewArchivedWeekDetails('${w.key}')" class="bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs px-3 py-2 rounded-xl flex items-center space-x-1.5 transition" title="Weeklijst terugkijken">
+                                <i class="fa-solid fa-eye"></i>
+                                <span>Terugkijken</span>
+                            </button>
+
+                            <button onclick="loadArchivedWeekIntoEditor('${w.key}')" class="bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs px-3 py-2 rounded-xl flex items-center space-x-1.5 transition" title="Open deze week om te bewerken of opnieuw te mailen">
+                                <i class="fa-solid fa-pen"></i>
+                                <span>Openen</span>
+                            </button>
+
+                            <button onclick="deleteArchivedWeek('${w.key}')" class="text-slate-400 hover:text-red-600 p-2 rounded-xl transition" title="Verwijder uit opgeslagen overzicht">
+                                <i class="fa-solid fa-trash-can text-xs"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function openCodesModal() {
+            const modal = document.getElementById('codesModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            document.getElementById('codeSearchInput').value = "";
+            renderCodesReferenceList();
+        }
+
+        function closeCodesModal() {
+            const modal = document.getElementById('codesModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function renderCodesReferenceList() {
+            const query = (document.getElementById('codeSearchInput')?.value || "").toLowerCase().trim();
+            const container = document.getElementById('codesReferenceContainer');
+            if (!container) return;
+
+            let html = "";
+            CODERINGEN_CATEGORIES.forEach(group => {
+                const filtered = group.codes.filter(c => 
+                    c.code.toLowerCase().includes(query) || 
+                    c.label.toLowerCase().includes(query)
+                );
+
+                if (filtered.length > 0) {
+                    html += `
+                        <div>
+                            <h4 class="text-xs font-extrabold uppercase tracking-wider text-slate-400 mb-2">${group.group}</h4>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                                ${filtered.map(c => `
+                                    <div class="flex items-center space-x-2.5 p-2 rounded-xl bg-slate-50 border border-slate-200/80">
+                                        <span class="px-2 py-0.5 rounded-lg bg-slate-900 text-white font-extrabold text-xs">${c.code}</span>
+                                        <span class="text-xs font-semibold text-slate-800">${c.label}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+
+            container.innerHTML = html || `<p class="text-sm text-slate-500 text-center py-6">Geen coderingen gevonden voor "${escapeHtml(query)}"</p>`;
+        }
+
+        function openResetModal() {
+            const modal = document.getElementById('resetModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeResetModal() {
+            const modal = document.getElementById('resetModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        function confirmResetWeek() {
+            const currentName = appState.employeeName;
+            const currentWeek = appState.weekNumber;
+            const currentMonday = appState.mondayDate;
+            const currentYear = getYearFromMonday(currentMonday);
+
+            const map = getSavedWeeksMap();
+            const key = getWeekArchiveKey(currentYear, currentWeek);
+            if (map[key]) {
+                delete map[key];
+                saveWeeksMap(map);
+            }
+
+            initFreshState(currentName, currentMonday);
+            document.getElementById('employeeName').value = appState.employeeName || "";
+            document.getElementById('weekNumber').value = appState.weekNumber;
+            document.getElementById('weekYear').value = appState.year;
+            document.getElementById('mondayDate').value = appState.mondayDate;
+
+            hideValidationBanner();
+            renderDayTabsMenu();
+            renderAllDays();
+            updateTotalsAndUI();
+            closeResetModal();
+            showToast(`Week ${currentWeek} is leeggemaakt!`);
+        }
+
+        // =========================================================================
+        // 12. UTILITIES
+        // =========================================================================
+        function showToast(msg) {
+            const toast = document.getElementById('toastNotification');
+            document.getElementById('toastMessage').textContent = msg;
+            toast.classList.remove('hidden');
+            toast.classList.add('flex');
+            setTimeout(() => {
+                toast.classList.add('hidden');
+                toast.classList.remove('flex');
+            }, 2800);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return "";
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
