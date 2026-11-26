@@ -825,7 +825,8 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
     
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    
+    <!-- SheetJS voor echte .xlsx Excel-bestanden -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
@@ -3480,104 +3481,125 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
         }
 
         function generateExcelHTMLContent() {
-            const weekTotal = calculateWeekTotal();
-            let rowsHtml = "";
+function generateExcelWorkbook() {
+            if (typeof XLSX === 'undefined') {
+                alert("De Excel-bibliotheek kon niet worden geladen. Controleer je internetverbinding.");
+                return null;
+            }
 
+            const weekTotal = calculateWeekTotal();
+            const aoa = [];
+            const merges = [];
+
+            // Rij 1: Bedrijfsnaam en Monteur
+            aoa.push([
+                "Installatiebedrijf Rijsbergen BV", "", "", "", "", "",
+                "NAAM :", "",
+                appState.employeeName || "", "", "", "", ""
+            ]);
+            merges.push(
+                { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+                { s: { r: 0, c: 6 }, e: { r: 0, c: 7 } },
+                { s: { r: 0, c: 8 }, e: { r: 0, c: 12 } }
+            );
+
+            // Rij 2: Koppen en Weeknummer
+            aoa.push([
+                "prjnr.", "adres", "", "", "", "", "", "", "", "",
+                "WEEKNR. :", "",
+                Number(appState.weekNumber) || String(appState.weekNumber || "")
+            ]);
+            merges.push({ s: { r: 1, c: 10 }, e: { r: 1, c: 11 } });
+
+            // Dagen Maandag t/m Zondag
             appState.days.forEach((day, dIdx) => {
                 const dateStr = formatDayDate(appState.mondayDate, dIdx);
                 const activeRows = day.rows.filter(r => !isRowCompletelyEmpty(r));
-                // Voor Ma t/m Vr minimaal 4 regels, voor Za/Zo alleen ingevulde of 2 lege regels
                 const minRows = dIdx < 5 ? 4 : (activeRows.length > 0 ? activeRows.length : 1);
                 const rowCount = Math.max(activeRows.length, minRows);
 
-                rowsHtml += `
-                    <tr style="background-color:#dbeafe; font-weight:bold;">
-                        <td colspan="2" style="border:1px solid #000;">${day.dayName} (${dateStr})</td>
-                        <td style="border:1px solid #000; text-align:center;">code 1</td>
-                        <td style="border:1px solid #000; text-align:center;">tijd 1</td>
-                        <td style="border:1px solid #000; text-align:center;">code 2</td>
-                        <td style="border:1px solid #000; text-align:center;">tijd 2</td>
-                        <td style="border:1px solid #000; text-align:center;">code 3</td>
-                        <td style="border:1px solid #000; text-align:center;">tijd 3</td>
-                        <td style="border:1px solid #000; text-align:center;">code 4</td>
-                        <td style="border:1px solid #000; text-align:center;">tijd 4</td>
-                        <td style="border:1px solid #000; text-align:center;">code 5</td>
-                        <td style="border:1px solid #000; text-align:center;">tijd 5</td>
-                        <td style="border:1px solid #000; text-align:right;">totaal</td>
-                    </tr>
-                `;
+                // Dagkop
+                const headerRowIdx = aoa.length;
+                aoa.push([
+                    `${day.dayName} (${dateStr})`, "",
+                    "code 1", "tijd 1",
+                    "code 2", "tijd 2",
+                    "code 3", "tijd 3",
+                    "code 4", "tijd 4",
+                    "code 5", "tijd 5",
+                    "totaal"
+                ]);
+                merges.push({ s: { r: headerRowIdx, c: 0 }, e: { r: headerRowIdx, c: 1 } });
 
+                // Projectregels
                 for (let i = 0; i < rowCount; i++) {
                     const r = activeRows[i];
                     if (r) {
                         const rTot = calculateRowTotal(r);
-                        let cellsHtml = "";
+                        const rowData = [String(r.prjnr || ""), String(r.adres || "")];
                         for (let s = 0; s < MAX_CODES_PER_ROW; s++) {
                             const e = r.entries[s] || { code: "", tijd: "" };
-                            cellsHtml += `
-                                <td style="border:1px solid #000; text-align:center; mso-number-format:'\\@';">${escapeHtml(e.code)}</td>
-                                <td style="border:1px solid #000; text-align:right;">${e.tijd ? String(e.tijd).replace('.', ',') : ''}</td>
-                            `;
+                            rowData.push(e.code ? String(e.code) : "");
+                            const tNum = parseFloat(e.tijd);
+                            rowData.push(!isNaN(tNum) && tNum > 0 ? tNum : "");
                         }
-
-                        rowsHtml += `
-                            <tr>
-                                <td style="border:1px solid #000; mso-number-format:'\\@'; font-weight:bold;">${escapeHtml(r.prjnr)}</td>
-                                <td style="border:1px solid #000;">${escapeHtml(r.adres)}</td>
-                                ${cellsHtml}
-                                <td style="border:1px solid #000; text-align:right; font-weight:bold;">${String(formatHours(rTot)).replace('.', ',')}</td>
-                            </tr>
-                        `;
+                        rowData.push(Number(rTot.toFixed(2)));
+                        aoa.push(rowData);
                     } else {
-                        rowsHtml += `
-                            <tr>
-                                <td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td><td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td><td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td><td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td><td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000;">&nbsp;</td><td style="border:1px solid #000;">&nbsp;</td>
-                                <td style="border:1px solid #000; text-align:right;">0,0</td>
-                            </tr>
-                        `;
+                        aoa.push(["", "", "", "", "", "", "", "", "", "", "", "", 0]);
                     }
                 }
             });
 
-            return `
-                <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-                <head>
-                    <meta charset="UTF-8">
-                    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Weeklijst</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-                </head>
-                <body>
-                    <table style="border-collapse:collapse; font-family:Arial, sans-serif; font-size:10pt;">
-                        <tr>
-                            <td colspan="6" style="font-weight:bold; font-size:12pt;">Installatiebedrijf Rijsbergen BV</td>
-                            <td colspan="2" style="font-weight:bold;">NAAM :</td>
-                            <td colspan="5" style="font-weight:bold; font-size:11pt;">${escapeHtml(appState.employeeName)}</td>
-                        </tr>
-                        <tr>
-                            <td style="font-weight:bold; border:1px solid #000;">prjnr.</td>
-                            <td style="font-weight:bold; border:1px solid #000;">adres</td>
-                            <td colspan="8"></td>
-                            <td colspan="2" style="font-weight:bold; border:1px solid #000;">WEEKNR. :</td>
-                            <td style="font-weight:bold; border:1px solid #000; text-align:center;">${escapeHtml(String(appState.weekNumber))}</td>
-                        </tr>
-                        ${rowsHtml}
-                        <tr style="background-color:#fde68a; font-weight:bold; font-size:11pt;">
-                            <td colspan="10" style="border:1px solid #000;"></td>
-                            <td colspan="2" style="border:1px solid #000; text-align:right;">WEEKTOTAAL</td>
-                            <td style="border:1px solid #000; text-align:right;">${String(formatHours(weekTotal)).replace('.', ',')}</td>
-                        </tr>
-                    </table>
-                </body>
-                </html>
-            `;
+            // Weektotaal
+            const totalRowIdx = aoa.length;
+            aoa.push([
+                "", "", "", "", "", "", "", "", "", "",
+                "WEEKTOTAAL", "",
+                Number(weekTotal.toFixed(2))
+            ]);
+            merges.push({ s: { r: totalRowIdx, c: 10 }, e: { r: totalRowIdx, c: 11 } });
+
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!merges'] = merges;
+            ws['!cols'] = [
+                { wch: 12 }, // prjnr.
+                { wch: 32 }, // adres
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 },
+                { wch: 10 }  // totaal
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Weeklijst");
+            return wb;
+        }
+
+        function generateExcelBlob() {
+            const wb = generateExcelWorkbook();
+            if (!wb) return null;
+            const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+            return new Blob([wbout], {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
         }
 
         function downloadExcelFile() {
+            const blob = generateExcelBlob();
+            if (!blob) return;
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${getCleanFilenameBase()}.xlsx`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Excel-weeklijst (.xlsx) gedownload!");
+        }
             const content = generateExcelHTMLContent();
             const blob = new Blob([content], { type: "application/vnd.ms-excel;charset=utf-8" });
             const url = URL.createObjectURL(blob);
@@ -3672,12 +3694,16 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
             return text;
         }
 
-        async function shareNativeWithAttachment() {
+async function shareNativeWithAttachment() {
             const officeEmail = document.getElementById('officeEmail').value.trim() || DEFAULT_OFFICE_EMAIL;
             const summaryText = `Aan: ${officeEmail}\n\n` + generatePlainTextSummary();
-            const excelContent = generateExcelHTMLContent();
-            const fileName = `${getCleanFilenameBase()}.xls`;
-            const file = new File([excelContent], fileName, { type: "application/vnd.ms-excel" });
+            const excelBlob = generateExcelBlob();
+            if (!excelBlob) return;
+
+            const fileName = `${getCleanFilenameBase()}.xlsx`;
+            const file = new File([excelBlob], fileName, {
+                type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            });
 
             if (navigator.canShare && navigator.canShare({ files: [file] })) {
                 try {
@@ -3686,7 +3712,7 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                         text: summaryText,
                         files: [file]
                     });
-                    showToast("Excel-weeklijst bijgevoegd in mailprogramma!");
+                    showToast("Excel-weeklijst (.xlsx) bijgevoegd in mailprogramma!");
                     return;
                 } catch (err) {
                     if (err.name !== 'AbortError') {
@@ -3697,7 +3723,6 @@ url:e,reason:"blocked_domain_not_allowlisted"},b.parentOrigin);throw new DOMExce
                 }
             }
 
-            // Fallback op apparaten/browsers zonder Web Share File API: download Excel en open mailprogramma naar projecten@rijsbergenbv.nl
             downloadExcelFile();
             setTimeout(() => {
                 sendMailto();
